@@ -1,0 +1,1397 @@
+.datatable.aware=TRUE
+#these are helper function used by HiC_matrix internally but with possible general usefulness
+#these function "do the work" on basic classes.
+#HiC_matrix class functions feed appropriate slots to these helpers.
+
+#efficiently subset data.table as one would a subrange of a matrix
+subset_dt = function(dt, i_range, j_range){
+    if(!any(class(dt) == "data.table")){
+        stop("stop: dt must have class data.table")
+    }
+    if(!all(key(dt) == c("i", "j"))){
+        stop("stop: data.table must be keyed by i and j")
+    }
+
+    qi = rep(i_range, length(j_range))
+    qj = as.vector(sapply(j_range, function(x){
+        rep(x, length(i_range))
+    }))
+    dt[.(qi, qj)]
+}
+
+# #wrapper for HiC_matrix to subset_dt
+# #this has been replaced by setMethod on "["
+# subset_HiC_matrix = function(hic_matrix, i_range, j_range){
+#   dt = hic_matrix@matrix
+#   subset_dt(dt, i_range, j_range)
+# }
+#
+
+insulation_of_chrRange = function(hic_mat, chr, start, end){
+    #determines index positions of specified interval and runs insulation_of_indexes
+    #determine overlapping indexes
+    m_gr = GRanges(hic_mat@hic_1d)
+    start(m_gr) = start(m_gr) + 1
+    q_gr = GRanges(seqnames = chr, IRanges(start + 1, end))
+    pos_indexes = subjectHits(findOverlaps(query = q_gr, subject = m_gr))
+    #pos_indexes have n_bins buffer from start or end of chromosome
+    chr_indexes = m_gr[seqnames(m_gr) == chr]$index
+    chr_len = length(chr_indexes)
+    chr_range = range(chr_indexes)
+    n_bins = hic_mat@parameters@n_insulation_bins
+    to_remove = chr_indexes[c(1:n_bins, (chr_len-n_bins+1):chr_len)]
+    if(length(intersect(to_remove, pos_indexes)) > 0){
+        pos_indexes[pos_indexes %in% to_remove] = NA
+        # warning("some bins in range were too close to chromosome ends and were set to NA")
+    }
+
+    insulation_of_indexes(hic_mat, pos_indexes, n_bins)
+}
+
+#the insulation range is a square region adjacent to diagonal of the matrix.
+#pos_index : the position along diagonal, 1 indexed
+#n_bins : the size of the insulation square. smaller n_bins may be sensitive to more local features are dependent on read depth
+insulation_range = function(pos_index, n_bins){
+    list(pos_index - 1:n_bins, pos_index + 1:n_bins)
+}
+
+
+
+#calculates the average value of square sub-matrix extended from diagonal at pos_index position by n_bins in both directions
+insulation_of_index = function(hic_matrix, pos_index, n_bins){
+    rng = insulation_range(pos_index, n_bins)
+    matrix_subset = hic_matrix[rng[[1]], rng[[2]]]
+    ins = sum(matrix_subset$val, na.rm = T) / n_bins^2
+    cov = sum(!is.na(matrix_subset$val)) / n_bins^2
+    min_cov = hic_matrix@parameters@min_insulation_coverage
+    if(cov < min_cov){
+        ins = NA
+    }
+    return(ins)
+}
+#
+# #runs insulation_of_index on all indexes in pos_indexes
+# insulation_of_indexes = function(hic_matrix, pos_indexes, n_bins){
+#   sapply(pos_indexes, function(pos_index){
+#     insulation_of_index(hic_matrix, pos_index, n_bins)
+#   })
+# }
+
+#runs insulation_of_index on all indexes in pos_indexes
+insulation_of_indexes = function(hic_matrix, pos_indexes, n_bins){
+    ins = sapply(pos_indexes, function(pos_index){
+        insulation_of_index(hic_matrix, pos_index, n_bins)
+    })
+    names(ins) = pos_indexes
+    return(ins)
+}
+
+#Found via Dave Shirley's hic package, HiC_functions.R
+#Adapted from geotheory package, https://gist.github.com/geotheory/5748388 author: Robin Edwards
+#Helper function so not imported
+hex_coord_df <- function(x, y, width, height, size = 1) {
+    # like hex_coord but returns a dataframe of vertices grouped by an id variable
+    dx <- size * width / 6
+    dy <- size * height
+
+    hex_x <- rbind(x - 2 * dx, x - dx, x + dx, x + 2 * dx, x + dx, x - dx)
+    hex_y <- rbind(y, y + dy, y + dy, y, y - dy, y - dy)
+    id    <- rep(1:length(x), each=6)
+
+    data.frame(cbind(x=as.vector(hex_x), y=as.vector(hex_y), id))
+}
+
+#adapted from hex_coord_df
+diamond_coord_df <- function(x, y, width, height, size = 1) {
+    # like hex_coord but returns a dataframe of vertices grouped by an id variable
+    dx <- size * width / 4
+    dy <- size * height
+    #for diamonds, delete 3rd and
+    hex_x <- rbind(x - 2 * dx, x, x + 2 * dx, x)
+    hex_y <- rbind(y, y + dy, y, y - dy)
+    id    <- rep(1:length(x), each=4)
+
+    data.frame(cbind(x=as.vector(hex_x), y=as.vector(hex_y), id))
+}
+
+
+
+plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red")){
+    bin_size = hic_mat@parameters@bin_size
+    # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
+    hicrng = hic_mat[chr, start:end]
+    MIN_I = min(c(hicrng$i, hicrng$j))
+    XMIN = hic_mat@hic_1d[index == MIN_I]$start
+    MAX_I = max(c(hicrng$i, hicrng$j))
+    XMAX = hic_mat@hic_1d[index == MAX_I]$end
+    hicrng[, x := (i + j) /2]
+    hicrng[, y := abs(i - j)]
+
+    hicrng = hicrng[j > i] #limit to upper triangle
+    hicrng = na.omit(hicrng) #leave out zero signal regions
+
+    index2center = function(index){
+        (index - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2
+    }
+
+    hicrng[, x_chr := index2center(x)]
+    hicrng[, y_chr := bin_size * y]
+
+    # hicrng[, i_chr := (i - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
+    # hicrng[, j_chr := (j - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
+
+    hex_df = hex_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
+    hex_df = cbind(hex_df, fill=rep(hicrng$val, each=6))
+
+    #pretty up break positions to be multiple of bin_size
+    ylab = sort(unique(hex_df$y))
+    nlab = 6
+    breaks = 0:nlab * ceiling(length(ylab) / nlab) * bin_size
+    p = ggplot(hex_df, aes(x=x, y=y)) +
+        geom_polygon(aes(group=id, fill=fill)) + scale_fill_gradientn(colours = hmap_colors) +
+        labs(x = paste(chr, "position"), y = "distance") + scale_y_continuous(breaks = breaks)
+    # p = p + coord_fixed()
+    return(p)
+    #different plot types facet trick
+    #https://statbandit.wordpress.com/2011/07/29/a-ggplot-trick-to-plot-different-plot-types-in-facets/
+
+    # plot_df = hex_df
+    # plot_df$type = "hex"
+    # f1 <- ggplot(dat2, aes(x=Date,y=value,ymin=0,ymax=value))+facet_grid(variable~., scales='free')
+    # ins_gr = GRanges(hic_mat@hic_1d)
+    # start(ins_gr) = rowMeans(cbind(start(ins_gr), end(ins_gr)))
+    # end(ins_gr)  = start(ins_gr)
+    # ins_vals = ins_gr[queryHits(findOverlaps(ins_gr, GRanges(chr, IRanges(start, end))))]$value
+}
+
+equal_breaks <- function(n = 3, s = 0.05, ...){
+    function(x){
+        if(max(x, na.rm = T) > 1000){
+            0:n * min(ceiling(max_dist / n / bin_size) * bin_size, #when max_dist is less than start to end
+                      ceiling(max(x, na.rm = T) / n / bin_size) * bin_size, na.rm = T)
+        }else{
+            c(min(x),0, max(x))
+        }
+        # rescaling
+        # d <- s * diff(range(x)) / (1+2*s)
+        # seq(min(x)+d, max(x)-d, length=n)
+    }
+}
+
+hic_equal_breaks <- function(bin_size, max_dist, n = 3, s = 0.05, ...){
+    function(x){
+        if(max(x, na.rm = T) > 1000){
+            0:n * min(ceiling(max_dist / n / bin_size) * bin_size, #when max_dist is less than start to end
+                      ceiling(max(x, na.rm = T) / n / bin_size) * bin_size, na.rm = T)
+        }else{
+            c(min(x),0, max(x))
+        }
+        # rescaling
+        # d <- s * diff(range(x)) / (1+2*s)
+        # seq(min(x)+d, max(x)-d, length=n)
+    }
+}
+
+plot_upperMatrix_with_insulation = function(hic_mat,
+                                            chr, start, end,
+                                            tile_type = c("diamond", "hex")[1],
+                                            show_plot = T, main_title = NULL,
+                                            max_dist = 10*10^6,  point_size = 3.5,
+                                            max_fill = NULL,
+                                            hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
+                                            show_insulation_range = T, show_minmax = T){
+    bin_size = hic_mat@parameters@bin_size
+    # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
+    hicrng = hic_mat[chr, c(start,end)]
+    MIN_I = min(c(hicrng$i, hicrng$j))
+    XMIN = hic_mat@hic_1d[index == MIN_I]$start
+    MAX_I = max(c(hicrng$i, hicrng$j))
+    XMAX = hic_mat@hic_1d[index == MAX_I]$end
+    # hicrng[, data.table::`:=`(x, (i + j) /2) ]
+    # hicrng[, data.table::`:=`(y, abs(i - j))]
+    # hicrng[, data.table::`:=`(x = (i + j) /2) ]
+    # hicrng[, data.table::`:=`(y = abs(i - j))]
+    hicrng[, x := (i + j) /2 ]
+    hicrng[, y := abs(i - j)]
+
+    hicrng = hicrng[j > i] #limit to upper triangle
+    hicrng = na.omit(hicrng) #leave out zero signal regions
+
+    index2center = function(index){
+        (index - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2
+    }
+
+    # hicrng[, data.table::`:=`(x_chr = index2center(x))]
+    # hicrng[, data.table::`:=`(y_chr = bin_size * y)]
+    hicrng[, x_chr := index2center(x)]
+    hicrng[, y_chr := bin_size * y]
+
+    # hicrng[, i_chr := (i - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
+    # hicrng[, j_chr := (j - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
+
+    if(tile_type == "hex"){
+        hex_df = hex_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
+        hex_df = cbind(hex_df, fill=rep(hicrng$val, each=6))
+    }else if(tile_type == "diamond"){
+        hex_df = diamond_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
+        hex_df = cbind(hex_df, fill=rep(hicrng$val, each=4))
+    }else{
+        stop("tile_type must match hex or diamond")
+    }
+    #pretty up break positions to be multiple of bin_size
+    ylab = sort(unique(hex_df$y))
+    nlab = 6
+    yfac = min(ceiling(max_dist / nlab / bin_size) * bin_size, #when max_dist is less than start to end
+               ceiling(length(ylab) / nlab) * bin_size) #when start and end are less than max_dist
+    breaks = 0:nlab * yfac
+    # p = ggplot(cbind(hex_df, fill=rep(hicrng$val, each=6)), aes(x=x, y=y)) +
+    #   geom_polygon(aes(group=id, fill=fill)) + scale_fill_gradientn(colours = hmap_colors) +
+    #   labs(x = paste(chr, "position"), y = "distance") + scale_y_continuous(breaks = breaks)
+    # p = p + coord_fixed()
+    # print(p)
+    #different plot types facet trick
+    #https://statbandit.wordpress.com/2011/07/29/a-ggplot-trick-to-plot-different-plot-types-in-facets/
+    hex_df$type = "hex"
+    ins_df = ggplot_hic_delta.df(dt = hic_mat@hic_1d, chr, start, end)
+
+
+    # plot_df = rbind(hex_df,
+    #                 ins_df)
+    # plot_df$type = factor(plot_df$type, levels = c("hex", "insulation"))
+
+
+
+    add_hex_plot = function(p, ptype = "hex"){
+        df = hex_df
+
+        fill_lab = "interaction"
+        if(!is.null(max_fill)){
+            df$fill[df$fill > max_fill] = max_fill
+            fill_lab = paste(fill_lab, "\ncapped at", max_fill)
+        }
+        df = subset(df, y <= max_dist)
+
+        mmdf = ins_df
+        # if(ptype != astype) mmdf$type = astype
+        mmdf$minmax = sapply(as.character(mmdf$id), function(x)switch(x, "-1" = "min", "0" = "-", "1" = "max"))
+        ann_df = subset(mmdf, id != 0)
+
+        minmax2col = c("min" = "darkgreen", "max" = "orange")
+        p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id)) +
+            scale_fill_gradientn(colours = hmap_colors) +
+            labs(x = "", y = "distance", fill = fill_lab) +
+            scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
+            coord_cartesian(xlim = c(start, end))
+        # if(nrow(ann_df) > 0){
+        # ann_df$type = "hex"
+        # p = p + annotate("point", x = ann_df$x, y = 0 - max(df$y)*.01, fill = minmax2col[ann_df$minmax], color = "black", size = point_size, stroke = 1.5, shape = 21)
+        # }
+
+        if(show_insulation_range){
+            p = p + annotate("line", x = c(start, end), y = hic_mat@parameters@n_insulation_bins * hic_mat@parameters@bin_size) +
+                annotate("text", x = c(end), y = hic_mat@parameters@n_insulation_bins * hic_mat@parameters@bin_size, label = "insulation\nbin range", hjust = 0)
+        }
+        return(p)
+    }
+    add_ins_plot = function(p, ptype = "insulation", astype = ptype){
+        # ins_df = ggplot_hic_delta.df(hic_mat@hic_1d, chr, start, end)
+        df = subset(ins_df, type == ptype)
+        if(ptype != astype) df$type = astype
+        df$minmax = sapply(as.character(df$id), function(x)switch(x, "-1" = "min", "0" = "-", "1" = "max"))
+        ann_df = subset(df, id != 0)
+        # ins_min = -10 #-10 was used for no signal
+        df$y[df$y == -10] = NA
+        p = p + geom_line(data = subset(df, id == 0), mapping = aes(x = x, y = y)) +
+            scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
+            # geom_point(data = ann_df, mapping = aes(shape = rep(21, nrow(ann_df)), x = x, y = y, fill = minmax, color = "black", size = point_size, stroke = 1.5)) +
+            scale_fill_manual(values = c("min" = "darkgreen", "max" = "orange")) +
+            labs(x = paste(chr, "position"), y = "log2(insulation / mean)") +
+            coord_cartesian(xlim = c(start, end)) +
+            scale_size_identity() +
+            scale_color_identity() +
+            scale_shape_identity()
+        if(nrow(ann_df) > 0 & show_minmax){
+            p = p + geom_point(data = ann_df, mapping = aes(shape = 21, x = x, y = y, fill = minmax, color = "black", size = point_size, stroke = 1.5))
+        }
+        return(p)
+    }
+    ###funky facet way
+    # p = ggplot()
+    # p = add_hex_plot(p)
+    # p = add_ins_plot(p)
+    # a = p + facet_grid(type~.,scales="free_y")
+    # gta = ggplot_gtable(ggplot_build(a))
+    # gta$heights[[6]] <- unit(5, "cm")
+    # gta$heights[[8]] <- unit(1, "cm")
+    # grid.newpage()
+    # grid.draw(gta)
+    pA = add_hex_plot(ggplot())
+    pB = add_ins_plot(ggplot())
+    gA = ggplotGrob(pA)
+    gB = ggplotGrob(pB)
+    maxWidth = grid::unit.pmax(gA$widths, gB$widths)
+    gA$widths <- as.list(maxWidth)
+    gB$widths <- as.list(maxWidth)
+    if(show_plot){
+        grid.arrange(arrangeGrob(gA,gB,nrow=2,heights=c(.8,.3)), top = main_title)
+    }
+
+    # grid.newpage()
+    # grid.draw(rbind(ggplotGrob(a), ggplotGrob(b), size = "last"))
+    #
+    # arrangeGrob(ggplotGrob(),gB,nrow=2,heights=c(.8,.3))
+
+    invisible(list(ggplots = list(upperMatrix = pA, insulation = pB),
+                   grobs = list(upperMatrix = gA, insulation = gB)))
+}
+
+
+score_tadness = function(dt){
+    if(exists("score_dt")) remove(score_dt, pos = ".GlobalEnv")
+    hidden = pblapply(unique(dt$seqnames), function(chr){
+        chr_dt = dt[seqnames == chr] # & value > -10] #-10 indicator values removed
+        min_dt = chr_dt[minmax == -1 & !is.na(delta) & value < 0] # minima must be below 0 value
+        hidden =  lapply(min_dt$index, function(ind){
+            min_val = chr_dt[index == ind]$value
+
+            right_ind = chr_dt[ minmax == 1 & index > ind][order(index, decreasing = F)[1]]$index
+            right_delta = chr_dt[index == right_ind]$value - min_val
+            right_dist = abs(ind - right_ind)
+
+            left_ind = chr_dt[ minmax == 1 & index < ind][order(index, decreasing = T)[1]]$index
+            left_delta = chr_dt[index == left_ind]$value - min_val
+            left_dist = abs(ind - left_ind)
+
+            k = !is.na(c(left_dist, right_dist))
+            if(sum(k) > 0){
+                new_dt = data.table(min_index = rep(ind, 2)[k],
+                                    max_index = c(left_ind, right_ind)[k],
+                                    direction = c("left", "right")[k],
+                                    bin_dist = c(left_dist, right_dist)[k],
+                                    ins_delta = c(left_delta, right_delta)[k])
+                if(!exists("score_dt")){
+                    score_dt <<- new_dt
+                }else{
+                    score_dt <<- rbind(score_dt, new_dt)
+                }
+            }
+            return(NULL)
+        })
+    })
+    return(score_dt)
+    # ggplot(score_dt, aes(x = bin_dist, y = ins_delta, color = direction)) + geom_jitter()
+    # score_plot_dt = score_dt[bin_dist < 35]
+    # ggplot(score_plot_dt, aes(x = bin_dist, y = ins_delta)) + geom_jitter(mapping = aes(color = direction))+
+    #   # ggplot(score_plot_dt, aes(x = bin_dist, y = ins_delta)) +
+    #   stat_density2d(aes(alpha=..level.., fill=..level..),
+    #                  size=2, bins=10, geom="polygon") +
+    #   # scale_fill_gradient(low = "yellow", high = "red") +
+    #   geom_density2d(colour="black", bins=10)
+    # # score_plot_dt[ins_delta > 5 & bin_dist < 10]
+    #
+    # min_bin = 10
+    # max_bin = 20
+    # min_delta = 1
+    # max_delta = 1.2
+    # spec_direction = "left"
+    # pdf(paste0("test_min_cov_30_bin_dist_", spec_direction, "_", min_bin, "_to_", max_bin, "_delta_", min_delta, "_to_", max_delta, ".pdf"))
+    # roi = dt[index %in% score_dt[direction == spec_direction & bin_dist > min_bin & bin_dist < max_bin & ins_delta > min_delta & ins_delta < max_delta]$min_index]
+    # roi = roi[sample(nrow(roi), size = min(10, nrow(roi))),]
+    # for(i in 1:nrow(roi)){
+    #   tp = roi[i,]
+    #   plot_upperMatrix_with_insulation(my_hic, tp$seqnames, tp$start-2*10^6, tp$end+2*10^6, max_fill = .2)
+    # }
+    # dev.off()
+}
+
+#taking 1 entry as baseline for tad call, assembles data.table of minmax deltas for full hic_list
+#for each minmax pair in baseline, measure delta at those genomic coordinates
+compare_tadness = function(hic_list, baseline = 1){
+    hic_scores = score_tadness(hic_list[[baseline]]@hic_1d)
+    # names(hic_list)[baseline]
+    for(i in 1:length(hic_list)){
+        cn = names(hic_list)[i]
+        if(i == baseline){
+            hic_scores[[cn]] = hic_scores$ins_delta
+        }else{
+            ins_dt = hic_list[[i]]@hic_1d
+            hic_scores[[cn]] = ins_dt[hic_scores$max_index]$value - ins_dt[hic_scores$min_index]$value
+        }
+    }
+    return(hic_scores)
+}
+
+compare_tadness.plot_prep = function(hic_ins_list, baseline = 1){
+    print(paste("using", names(hic_ins_list)[baseline], "as reference"))
+    ins_dt = hic_ins_list[[baseline]]@hic_1d
+    tad_ins_deltas = compare_tadness(hic_ins_list, baseline = baseline)
+    # tad_ins_deltas[, 6:11]
+    tad_ins_deltas = cbind(tad_ins_deltas, ins_dt[tad_ins_deltas$min_index, .(seqnames = seqnames, mid_min = (start + end) / 2)])
+    tad_ins_deltas = cbind(tad_ins_deltas, ins_dt[tad_ins_deltas$max_index, .(mid_max = (start + end) / 2)])
+
+    # all_valid = apply(as.matrix(tad_ins_deltas[,6:11]), 1, function(x)!any(is.na(x)))
+    quant_deltas = preprocessCore::normalize.quantiles(as.matrix(tad_ins_deltas[,6:(5+length(hic_ins_list))]))
+    colnames(quant_deltas) = paste0(colnames(tad_ins_deltas)[6:(5+length(hic_ins_list))], "_qnorm")
+    tad_ins_deltas = cbind(tad_ins_deltas, quant_deltas)
+}
+
+plot_tad_schematic = function(hic_ins_list, tad_ins_deltas, chr, start, end, baseline, delta_cutoff = .6){
+    pos_indexes = get_chrRange_indexes(hic_ins_list[[1]]@hic_1d, chr, start - 10^6, end + 10^6)
+    ins_yrng = range(hic_ins_list[[baseline]]@hic_1d[pos_indexes, ]$value, na.rm = T)
+    b = -min(ins_yrng)
+    m = 1 / (max(ins_yrng) - min(ins_yrng))
+    plot_deltas = tad_ins_deltas[min_index %in% pos_indexes]
+
+    plot(0, xlim = c(start, end), ylim = c(-1, 1))
+    tp = which(grepl("qnorm", colnames(plot_deltas)))
+    delta_max = max(plot_deltas[, tp, with = F], na.rm = T)
+    grps = sapply(strsplit(colnames(plot_deltas)[tp], "_"), function(x)x[1])
+    rcols = RColorBrewer::brewer.pal(length(unique(grps)), "Dark2")
+    names(rcols) = unique(grps)
+    rcols = rcols[grps]
+
+    for(i in 1:nrow(plot_deltas)){
+
+        x_s = plot_deltas[i, ]$mid_min
+        x_e = plot_deltas[i, ]$mid_max
+        # y_s = 0
+        # y_e = plot_deltas[i, ]$ins_delta
+        y_s = (hic_ins_list[[baseline]]@hic_1d[plot_deltas[i, ]$min_index]$value + b) * m
+        y_e = (hic_ins_list[[baseline]]@hic_1d[plot_deltas[i, ]$max_index]$value + b) * m
+        pol_col = rcols[baseline]
+        fill_col = ifelse(plot_deltas[i, ]$ins_delta >= delta_cutoff, rcols[baseline], "white")
+        polygon(c(x_s, x_e, x_e, x_s), c(y_s, y_s, y_e, y_s),col = fill_col)
+
+        #do not indclude barplot for weak deltas
+        if(plot_deltas[i, ]$ins_delta < delta_cutoff) next
+        center = mean(c(x_s, x_e))
+        yvals = plot_deltas[i, tp, with = F] / delta_max * .6
+        bp_w = (end - start) * .025
+        box_min = min(c(x_s, x_e)) #center - bp_w
+        box_max = max(c(x_s, x_e)) #center + bp_w
+        box_win = (box_max - box_min) / length(yvals)
+
+        rect(xleft = box_min,
+             ybottom = -.8,
+             ytop = -.8 + .6,
+             xright = box_min + length(yvals) * box_win, col = "white")
+
+        rect(xleft = box_min + (1:length(yvals) - 1) * box_win,
+             ybottom = -.8,
+             ytop = -.8 + yvals,
+             xright = box_min + 1:length(yvals) * box_win, col = rcols)
+
+    }
+}
+
+
+###assemble tall data.table of tad calls
+assemble_tad_calls = function(hic_ins_list){
+    tad_scores = lapply(hic_ins_list, function(x) score_tadness(x@hic_1d))
+    tad_scores_dt = tad_scores[[1]]
+    tad_scores_dt$grp = names(tad_scores)[1]
+    for(i in 2:length(tad_scores)){
+        new_dt = tad_scores[[i]]
+        new_dt$grp = names(tad_scores)[i]
+        tad_scores_dt = rbind(tad_scores_dt, new_dt)
+    }
+    tad_scores_dt = cbind(tad_scores_dt, hic_ins_list[[1]]@hic_1d[tad_scores_dt$min_index, .(seqnames, mid = (start + end) / 2)])
+    tad_scores_dt[, ins_delta_mednorm := ins_delta / quantile(ins_delta, .5, na.rm = T), by = grp]
+    return(tad_scores_dt)
+}
+#plot min calls
+
+
+
+ggplot_tad_scores = function(tad_calls, regions, chr, start, end, bin_dist_range = c(-Inf, Inf), ins_delta_range = c(-Inf, Inf)){
+    pos_indexes = get_chrRange_indexes(regions, chr, start, end)
+    ggplot(tad_calls[min_index %in% pos_indexes &
+                         bin_dist >= bin_dist_range[1] &
+                         bin_dist <= bin_dist_range[2] &
+                         ins_delta_mednorm >= ins_delta_range[1] &
+                         ins_delta_mednorm <= ins_delta_range[2]], aes(x = mid, y = grp)) + geom_point()
+}
+
+#convert a list of data.table to a single tall data.table with added column of list names
+list_dt2tall_dt = function(list_dt, new_col = NULL, show_progress = T){
+    if(is.null(names(list_dt))) names(list_dt) = paste("group", 1:length(list_dt))
+    if(exists("tmp_dt")) remove("tmp_dt")
+    for(i in 1:length(list_dt)){
+        dt = list_dt[[i]]
+        if(!is.null(names(list_dt)) & !is.null(new_col)){
+            dt[[new_col]] = names(list_dt)[i]
+        }
+        if(!exists("tmp_dt")){
+            tmp_dt = dt
+        }else{
+            tmp_dt = rbind(tmp_dt, dt)
+        }
+        if(show_progress){
+            cat('\r',round(i / length(list_dt) * 100, digits = 2), "%", rep(" ", 20))
+            flush.console()
+        }
+    }
+    return(tmp_dt)
+}
+
+
+#calculates z-score of log2 transformed data
+#z-scores are segmented by chromosome and by distance from diagonal
+#returns recalculated HiC_matrix_wInsulation
+apply_diagonal_zscore = function(hic_mat){
+    test_dt = hic_mat@hic_2d
+    test_reg = hic_mat@hic_1d
+
+    #merge to include chromosome information
+    print("assembling chromosome info...")
+    test_dt = merge(merge(test_dt, test_reg, by.x = "i", by.y = "index"), test_reg, by.x = "j", by.y = "index")
+    test_dt[, val := log2(val)]
+
+    MAX = test_dt[seqnames.x == seqnames.y, max(j-i)]
+    all_chrms = unique(test_reg$seqnames)
+    test_dt[, index_diff := abs(i - j)]
+    setkey(test_dt, index_diff, seqnames.x, seqnames.y)
+
+    print("calculating z-scores...")
+    test_dt = test_dt[seqnames.y == seqnames.x, ]
+    test_dt = test_dt[, .(i, j, val, seqnames = seqnames.x, index_diff)]
+    #ninja data.table segmented z-score calculation - kachow
+    test_z_dt = test_dt[, .(i, j, val = (val - mean(val, na.rm = T)) / sd(val, na.rm = T)), by = c("index_diff", "seqnames")]
+
+    setkey(test_z_dt, i, j)
+    test_z_dt = test_z_dt[!is.na(val),]
+
+    hic_mat@hic_2d = test_z_dt
+    hic_mat@hic_1d = hic_mat@hic_1d[,1:4]
+    hic_mat@parameters@log2_over_mean_normalization = F
+    return(HiC_matrix_wInsulation(hic_mat))
+}
+
+
+decrease_resolution = function(hic_mat, pool_factor, calc_insulation = F){
+    bin_size = hic_mat@parameters@bin_size
+    newb_size = bin_size * pool_factor
+    chr_sizes =  hic_mat@hic_1d[, .(size = max(end)),by = seqnames]
+    setkey(chr_sizes, seqnames)
+    grs = lapply(chr_sizes$seqnames, function(chr){
+        ends = 1:ceiling(chr_sizes[chr]$size / newb_size) * newb_size
+        starts = ends - newb_size
+        ends = ifelse(ends > chr_sizes[chr]$size, chr_sizes[chr]$size, ends)
+        GRanges(chr, IRanges(starts, ends))
+    })
+    grs = unlist(GRangesList(grs))
+    grs$pooled_index = 1:length(grs)
+    odt = as.data.table(findOverlaps(grs, GRanges(hic_mat@hic_1d), minoverlap = 5))
+    setkey(odt, queryHits)
+    print("reduce 1d...")
+    new_1d = as.data.table(grs)
+    new_1d = new_1d[, .(seqnames, start, end, index = pooled_index)]
+    new_1d$seqnames = as.character(new_1d$seqnames)
+
+    print("reduce 2d...")
+    nbins = pool_factor^2
+    setkey(odt, subjectHits)
+    new_2d  = hic_mat@hic_2d
+    new_2d[ , pooled_i := odt[.(i), queryHits]]
+    new_2d[ , pooled_j := odt[.(j), queryHits]]
+    agg_func = function(x){
+        sum(x) / nbins
+    }
+    new_2d = new_2d[, .(val = agg_func(val)), by = c("pooled_i", "pooled_j") ]
+    new_2d = new_2d[, .(i = pooled_i, j = pooled_j, val = val)]
+    setkey(new_2d, i, j)
+
+    print("assemble HiC_matrix...")
+    new_hic = hic_mat
+    new_hic@hic_2d = new_2d
+    new_hic@hic_1d = new_1d
+    new_hic@parameters = HiC_parameters(bin_size = hic_mat@parameters@bin_size * pool_factor)
+    if(calc_insulation){
+        print("calc insulation...")
+        new_hic = HiC_matrix_wInsulation(new_hic)
+    }
+    return(new_hic)
+}
+
+
+ggplotList2grobList = function(ggplotList){
+    grobList = lapply(ggplotList, function(x){
+        ggplotGrob(x)
+    })
+    maxWidth = grid::unit.pmax(grobList[[1]]$widths, grobList[[2]]$widths)
+    i = 3
+    while(i <= length(grobList)){
+        maxWidth = grid::unit.pmax(maxWidth, grobList[[3]]$widths)
+        i = i + 1
+    }
+
+    grobList = lapply(grobList, function(x){
+        x$widths = maxWidth
+        x
+    })
+    grobList
+}
+
+plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
+                             exons_gr = NULL, max_dist = NULL,
+                             hic_names = names(hic_list),
+                             target_gene, extension_size_bp, output_prefix = "combined_plots",
+                             n_arch = 50, min_arch_dist = 10*10^5,
+                             max_fill = NULL,
+                             hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red")){
+    qgr = fetch_region_by_gene_name(target_gene, ext = extension_size_bp)
+    start(qgr) = start(qgr)
+    chr = as.character(seqnames(qgr))
+    start = start(qgr)
+    start = ifelse(start < 0, 0, start)
+    end = end(qgr)
+    bin_size = hic_list[[1]]@parameters@bin_size
+    start = floor(start / bin_size) * bin_size
+    end = ceiling(end / bin_size) * bin_size
+    if(is.null(exons_gr)){
+        p.annot = ggplot(txdb_gn) +
+            geom_alignment(which = qgr,
+                           group.selfish = T, names.expr = "gene_id") +
+            coord_cartesian(xlim = c(start, end))
+    }else{
+        p.annot = ggplot(exons_gr) +
+            geom_alignment(which = qgr,
+                           group.selfish = T, names.expr = "gene_id") +
+            coord_cartesian(xlim = c(start, end))
+    }
+    hg38_ideogram = biovizBase::getIdeogram(genome = "hg38")
+    p.ideo <- Ideogram(obj = hg38_ideogram, subchr = chr, zoom.region = c(start, end), color = "green", fill = "darkgreen")
+
+    # cells = c("MCF10A", "MCF10A-AT1", "MCF10A-CA1a")
+
+    for(i in 1:length(hic_list)){
+        main = hic_names[i]
+        if(is.null(max_dist)){
+            max_dist = end - start
+        }
+        p.list = plot_upperMatrix_with_insulation(hic_mat = hic_list[[i]], hmap_colors = hmap_colors, max_fill = max_fill,
+                                                  chr, start, end, show_plot = F, max_dist = max_dist)
+        # p.list = plot_upperMatrix_with_insulation(hic_list[[i]], chr, start, end, show_plot = F)
+        arch_dt = hic_list[[i]][chr, start:end][!is.na(val)]
+        arch_start = hic_list[[i]]@hic_1d[arch_dt$i, (start + end) / 2]
+        arch_end = hic_list[[i]]@hic_1d[arch_dt$j, (start + end) / 2]
+        arch_gr = GRanges(chr, IRanges(arch_start, arch_end))
+        arch_gr$value = arch_dt$val
+        k = width(arch_gr) > min_arch_dist
+        arch_gr = arch_gr[k]
+        arch_gr = arch_gr[order(arch_gr$value, decreasing = T)][1:min(n_arch, length(arch_gr))]
+        p.arch = ggplot(arch_gr) + geom_arch(aes(height = value)) + coord_cartesian(xlim = c(start, end))
+        p.runx = add_bigwig_plot.tiles(runx_bws[i], chr, start, end, bigwig_title = "RUNX1 FE", fe_min = 1, fe_max = 40)
+        p.ctcf = add_bigwig_plot.tiles(ctcf_bws[i], chr, start, end, bigwig_title = "CTCF FE", fe_min = 1, fe_max = 80)
+        #manual assignment
+        p.list = list(ggplotGrob(p.ideo),
+                      p.list[[1]],
+                      ggplotGrob(p.arch),
+                      ggplotGrob(p.annot),
+                      p.list[[2]],
+                      ggplotGrob(p.runx),
+                      ggplotGrob(p.ctcf))
+        p.list = lapply(p.list, function(gt){
+            gt$layout$clip[gt$layout$name == "panel"] = "off"
+            gt
+        })
+
+        #get max widths to assign to all
+        maxWidth = as.list(unit.pmax(p.list[[1]]$widths, p.list[[2]]$widths,
+                                     p.list[[3]]$widths, p.list[[4]]$widths,
+                                     p.list[[5]]$widths, p.list[[6]]$widths, p.list[[7]]$widths))
+        for(j in 1:length(p.list)){
+            p.list[[j]]$widths = maxWidth
+        }
+        pdf(paste0(output_prefix, "_", target_gene, "_ext", extension_size_bp, "_", main, "_bin", bin_size, ".pdf"), height = 12)
+        grid.arrange(arrangeGrob(grobs = p.list, ncol=1,heights=c(.2,.6,.4,.2,.3, .3, .3)), top = main)
+        dev.off()
+    }
+
+}
+
+#sparse data.table to dense matrix conversions
+mat2dt = function(mat){
+    dt2 = as.data.table(mat)
+    colnames(dt2) = as.character(1:ncol(dt2))
+    dt2$i = 1:nrow(dt2)
+
+    dt2m = melt(dt2, id.vars = "i", variable.name = "j")
+    dt2m$j = as.integer(dt2m$j)
+    return(dt2m)
+}
+dt2mat = function(dt){
+    adj_i = dt[, min(i)] - 1
+    adj_j = dt[, min(j)] - 1
+    as.matrix(sparseMatrix(dt$i - adj_i, dt$j - adj_j, x = dt$val))
+}
+
+
+gaussian_cluster_chrm = function(hic_mat, chrm, sigma, nclust, output_prefix = "gaussian_blur", sample_description = paste0("matrix_", hic_mat@parameters@bin_size)){
+    idxs = hic_mat@hic_1d[seqnames == chrm]$index
+    chrm_dt = hic_mat@hic_2d[i %in% idxs & j %in% idxs]
+    chrm_dt[, index_diff := abs(i - j)]
+    chrm_dt[, seqnames := chrm]
+    chrm_dt = rbind(chrm_dt, chrm_dt[, .(index_diff, seqnames, i = j, j = i, val)])
+    picture = dt2mat(chrm_dt)
+    picture = ifelse(picture < 0, 0, picture)
+    picture2 <- as.matrix(blur(as.im(picture), sigma=sigma))
+
+    png(paste0(output_prefix, "_", sample_description, "_sigma", sigma, "_blur_comparison.png"), width = 1000, height = 1000)
+    layout(matrix(c(1:4), nrow=2))
+    image.plot(picture, col=gray.colors(50), main="original image", asp=1)
+    image.plot(picture2, col=gray.colors(50), main=paste0("blurred with sigma = ", sigma), asp=1)
+    drape.plot(1:nrow(picture), 1:ncol(picture), picture, border=NA, theta=0, phi=45, main="original spectrogram")
+    drape.plot(1:nrow(picture), 1:ncol(picture), picture2, border=NA, theta=0, phi=45, main=paste0("blurred with sigma = ", sigma))
+    dev.off()
+
+    # kpic = kmeans(pic, centers = 6)
+    hdist = dist(picture2)^2
+    hpic = hclust(d = hdist, method = "average")
+    hclusters = cutree(hpic, k = nclust)
+    side_cols = rainbow(n = nclust)[hclusters]
+
+
+    png(paste0(output_prefix, "_", sample_description, "_sigma", sigma, "_nclust", nclust, "_clustering.png"), width = 1000, height = 2000)
+    layout(1:2)
+    par(xpd = NA)
+    image.plot(picture2, col=gray.colors(50))
+    sc2 = lapply(sort(unique(side_cols)), function(x){
+        mtch = which(x == side_cols)
+        mis = which(!mtch[-1] - 1 == mtch[-length(mtch)])
+        if(length(mis) == 0)return(data.frame(starts = min(mtch), ends = max(mtch), color = x, stringsAsFactors = F))
+        starts = c(min(mtch), mtch[mis+1])
+        ends = c(mtch[mis], max(mtch))
+        data.frame(starts, ends, color = rep(x, length(starts)), stringsAsFactors = F)
+    })
+
+    tmp = sc2[[1]]
+    for(i in 2:length(sc2)){
+        tmp = rbind(tmp, sc2[[i]])
+    }
+    tmp$starts = tmp$starts - 1
+    tmp$starts = tmp$starts / max(tmp$ends)
+    tmp$ends = tmp$ends / max(tmp$ends)
+    par(xpd = NA)
+    for(i in 1:nrow(tmp)){
+        # print(tmp[i,])
+        rect(xleft = tmp[i,1], xright = tmp[i,2], ybottom = .99, ytop = 1.03, col = tmp[i,3])
+        rect(ybottom = tmp[i,1], ytop = tmp[i,2], xleft = .99, xright = 1.03, col = tmp[i,3])
+    }
+
+
+    image.plot(picture2[hpic$order, hpic$order], col=gray.colors(50))
+
+
+    # sc = side_cols[hpic$order]
+    sc = sapply(sort(unique(side_cols[hpic$order])), function(x){
+        range(which(x == side_cols[hpic$order]))
+    })
+    sc[1,]  = sc[1,] - 1
+    sc = sc / max(sc)
+    par(xpd = NA)
+    for(i in 1:ncol(sc)){
+        rect(xleft = sc[1,i], xright = sc[2,i], ybottom = .99, ytop = 1.03, col = colnames(sc)[i])
+        rect(ybottom = sc[1,i], ytop = sc[2,i], xleft = .99, xright = 1.03, col = colnames(sc)[i])
+    }
+
+
+    # side_cols = cutree(hpic, k = k)
+    # side_cols = rainbow(n = k)[hclusters]
+    # sc = side_cols
+
+    dev.off()
+}
+
+fetch_bigwig_as_dt = function(bigwig_file, chr, start, end, n_bins = 200, bin_method = c("mean", "max")[2], show_progress_bar = T){
+    qgr = GRanges(chr, IRanges(start, end))
+
+    runx_gr = import(con = bigwig_file,
+                     format = "BigWig", which = qgr)
+    runx_dt = as.data.table(runx_gr)
+    tiles_gr = tile(qgr, n = n_bins)[[1]]
+    tiles_dt = as.data.table(tiles_gr)
+    olaps_dt = as.data.table(findOverlaps(runx_gr, tiles_gr))
+    setkey(olaps_dt, "subjectHits")
+
+    if(show_progress_bar){
+        app_fun = pbsapply
+    }else{
+        app_fun = sapply
+    }
+
+    tiles_mat = t(app_fun(unique(olaps_dt$subjectHits), function(x){
+        hit_dt = runx_dt[olaps_dt[.(x)]$queryHits]
+        # hit_gr = runx_gr[olaps_dt[.(x)]$queryHits]
+        s = tiles_dt[x]$start
+        e = tiles_dt[x]$end
+        hit_dt[, start := ifelse(start < s, s, start)]
+        hit_dt[, end := ifelse(end > e, e, end)]
+
+        # start(hit_gr)[start(hit_gr) < s] = s
+        # end(hit_gr)[end(hit_gr) > e] = e
+        mean_score = sum(hit_dt[, (end - start + 1) * score]) / tiles_dt[x, end - start + 1]
+        # mean_score = sum(width(hit_gr) * hit_gr$score) / width(tiles_gr[x])
+        max_score = max(hit_dt$score)
+        min_score = min(hit_dt$score)
+        return(c(s, e+1, mean_score, min_score, max_score))
+    }))
+    colnames(tiles_mat) = c("start", "end", "mean", "min", "max")
+    tiles_dt = as.data.table(tiles_mat)
+    tiles_dt[, xmin := start]
+    tiles_dt[, xmax := end]
+    tiles_dt[, x := (xmin + xmax) / 2]
+    tiles_dt[, y := get(bin_method)]
+    tiles_dt[, c("xmin", "xmax", "x", "y")]
+}
+
+add_bigwig_plot.tiles = function(bigwig_files, chr, start, end, n_bins = 200,
+                                 bin_method = c("mean", "max")[2], bigwig_title = "FE",
+                                 bigwig_colors = NULL, p = NULL, fe_max = NULL, fe_min = NULL,
+                                 alpha = NULL, sample_desc = NULL, just_data = F, show_progress_bar = F){
+    tiles_dtlist = lapply(bigwig_files, function(x){
+        fetch_bigwig_as_dt(x, chr, start, end, n_bins = n_bins, bin_method = bin_method, show_progress_bar = show_progress_bar)
+    })
+    tiles_dt = list_dt2tall_dt(tiles_dtlist, new_col = "group")
+    # tiles_dt = fetch_bigwig_as_dt(bigwig_file, chr, start, end, n_bins = n_bins, bin_method = bin_method)
+
+    if(is.null(fe_max)) fe_max = max(tiles_dt$y)
+    if(is.null(fe_min)) fe_min = min(tiles_dt$y)
+    if(is.null(alpha)){
+        if(length(bigwig_files) > 1){
+            alpha = .4
+        }else{
+            alpha = 1
+        }
+    }
+    # p = p + geom_rect(data = tiles_dt, aes(xmin = xmin, xmax = xmax, ymin= 0, ymax = y, fill = group))
+    # p = p + geom_line(data = tiles_dt, aes(x = x, y = y, col = group))
+    todo = unique(tiles_dt$group)
+    names(todo) = todo
+    plot_list = lapply(todo, function(grp){
+        grp_dt = tiles_dt[group == grp]
+        y1 = grp_dt[nrow(grp_dt),y]
+        y2 = 0
+        y3 = 0
+        y4 = grp_dt[1,y]
+        x1 = grp_dt[, max(xmax)]
+        x2 = x1
+        x3 = grp_dt[, min(xmin)]
+        x4 = x3
+        main_dt = rbind(grp_dt[, .(x = xmax, y, group)],
+                        grp_dt[, .(x = xmin, y, group)]
+        )
+        main_dt = main_dt[order(x)]
+        ending_dt = data.table(x = c(x1,x2,x3,x4), y = c(y1,y2,y3,y4), group = grp)
+        rbind(main_dt, ending_dt)
+    })
+    plot_dt = list_dt2tall_dt(plot_list, new_col = NULL)
+    if(is.null(p)){
+        p = ggplot() +
+            labs(x = "", y = bigwig_title) +
+            coord_cartesian(xlim = c(start, end), ylim = c(fe_min, fe_max))
+
+    }
+
+    alpha = substr(rgb(.1, .1, .1, alpha), start = 8, stop = 9)
+    if(!is.null(bigwig_colors)){
+        group_colors = bigwig_colors
+        if(substr(group_colors, 0, 1)[1] != "#"){
+            group_colors = col2hex(group_colors)
+        }
+    }else{
+        len = length(unique(tiles_dt$group))
+        group_colors = RColorBrewer::brewer.pal(max(len, 3), "Dark2")[1:len]
+    }
+
+    group_colors = paste0(group_colors, alpha)
+    names(group_colors) = unique(tiles_dt$group)
+    if(just_data) return(plot_dt)
+    p = p + geom_polygon(data = plot_dt, aes(x = x, y = y, col = NULL, fill = group)) +
+        labs(fill = sample_desc) +
+        scale_fill_manual(values = group_colors) +
+        scale_color_manual(values = group_colors)
+    return(p)
+}
+
+add_bigwig_plot = function(bigwig_file, chr, start, end, bigwig_title = "FE", p = NULL, fe_max = NULL){
+    qgr = GRanges(chr, IRanges(start, end))
+    if(is.null(p)) p = ggplot()
+    runx_gr = import(con = bigwig_file,
+                     format = "BigWig", which = qgr)
+
+    MIN_SCORE = 1
+    runx_gr.sub =  subset(runx_gr, score > MIN_SCORE)
+    if(is.null(fe_max)) fe_max = max(runx_gr$score)
+    runx_gr.bg = setdiff(qgr, runx_gr.sub)
+    runx_gr.bg$score = MIN_SCORE
+
+    tmp = as.data.table(c(runx_gr.sub, runx_gr.bg))
+    tmp = tmp[order(start)]
+    runx_dt = data.table(x = sort(c(tmp$start, tmp$end)),
+                         y = rep(tmp$score, each = 2))
+    runx_dt = rbind(data.table(x = start(qgr), y = MIN_SCORE), runx_dt, data.table(x = end(qgr), y = MIN_SCORE))
+
+    p2 = ggplot() + labs(x = "", y = bigwig_title) +
+        geom_line(data = runx_dt, aes(x = x, y = y)) + coord_cartesian(ylim = c(0, fe_max)) +
+        annotate("rect", xmin = start(qgr), xmax = end(qgr), ymin = .9, ymax = MIN_SCORE)
+    return(p2)
+}
+
+
+fetch_region_by_gene_name = function(gene_names, ext = 0){
+    # if(!exists("gene_ref")){
+    #   load("../HiC_histone_genes/hg38ref.save")
+    #   ref_dt = as.data.table(ref)
+    #   ref_dt = ref_dt[!duplicated(gene_name)]
+    #   ref_dt = ref_dt[, .(seqnames = chrm, start, end, strand, symbol = gene_name, ensembl_id = gene_id)]
+    #   setkey(ref_dt, symbol)
+    #   genesymbol = GRanges(ref_dt)
+    #   names(genesymbol) = genesymbol$symbol
+    #   gene_ref <<- genesymbol
+    # }
+    # rng = range(gene_ref[gene_names], ignore.strand = TRUE)
+    rng = range(gene_gr[gene_names], ignore.strand = TRUE)
+    start(rng) = start(rng) - ext
+    end(rng) = end(rng) + ext
+    return(rng)
+}
+
+fetch_genes_in_region = function(qgr = NULL, chr = NULL, start = NULL, end = NULL, target_gr = NULL){
+    if(is.null(qgr)){
+        if(is.null(chr) | is.null(start) | is.null(end)){
+            stop("need qgr GRanges or chr, start, and end")
+        }
+        qgr = GRanges(chr, IRanges(start, end))
+    }
+    if(is.null(target_gr)){
+        target_gr = exon_gr
+    }
+    target_gr[queryHits(findOverlaps(query = target_gr, qgr))]
+
+}
+
+# plot_combined_hic = function(hic_list, hic_names, target_gene, extension_size_bp, file_prefix = "combined_plots"){
+#   tp_hic_list = my_p_hicsdz_capped
+#
+#   qgr = fetch_region_by_gene_name("ZEB1", ext = 2*10^6)
+#   start(qgr) = start(qgr)
+#   chr = as.character(seqnames(qgr))
+#
+#   start = start(qgr)
+#   end = end(qgr)
+#   bin_size = tp_hic_list[[1]]@parameters@bin_size
+#   start = floor(start / bin_size) * bin_size
+#   end = ceiling(end / bin_size) * bin_size
+#
+#   p.annot = ggplot(txdb_gn) +
+#     geom_alignment(which = qgr,
+#                    group.selfish = T, range.geom = "arrowrect",  names.expr = "gene_id") +
+#     coord_cartesian(xlim = c(start, end))
+#   hg38_ideogram = biovizBase::getIdeogram(genome = "hg38")
+#   p.ideo <- Ideogram(obj = hg38_ideogram, subchr = chr, zoom.region = c(start, end), color = "green", fill = "darkgreen")
+#
+#   cells = c("MCF10A", "MCF10A-AT1", "MCF10A-CA1a")
+#   for(i in 1:3){
+#     main = cells[i]
+#     p.list = plot_upperMatrix_with_insulation(tp_hic_list[[i]], chr, start - 1*10^6, end + 1*10^6, show_plot = F)
+#     # p.list = plot_upperMatrix_with_insulation(tp_hic_list[[i]], chr, start, end, show_plot = F)
+#     p.runx = add_bigwig_plot(runx_bw[i], chr, start, end, bigwig_title = "RUNX1 FE", fe_max = 30)
+#     p.ctcf = add_bigwig_plot(ctcf_bw[i], chr, start, end, bigwig_title = "CTCF FE", fe_max = 30)
+#     #manual assignment
+#     p.list = list(ggplotGrob(p.ideo),
+#                   p.list[[1]],
+#                   ggplotGrob(p.annot),
+#                   p.list[[2]],
+#                   ggplotGrob(p.runx),
+#                   ggplotGrob(p.ctcf))
+#     #get max widths to assign to all
+#     maxWidth = as.list(unit.pmax(p.list[[1]]$widths, p.list[[2]]$widths,
+#                                  p.list[[3]]$widths, p.list[[4]]$widths,
+#                                  p.list[[5]]$widths, p.list[[6]]$widths))
+#     for(j in 1:length(p.list)){
+#       p.list[[j]]$widths = maxWidth
+#     }
+#     pdf(paste0("plots_ZEB1_tss_combined_", main, "_", bin_size, ".pdf"), height = 12)
+#     grid.arrange(arrangeGrob(grobs = p.list, ncol=1,heights=c(.2,.6,.6,.3, .3, .3)), top = main)
+#     dev.off()
+#   }
+# }
+
+#combines insulation profiles and performs quantile normalization
+quant_norm_insulation = function(my_hicsd){
+    my_hicsd_tad_calls = assemble_tad_calls(my_hicsd)
+    ggplot_tad_scores(my_hicsd_tad_calls, my_hicsd[[1]]@hic_1d, "chr2", 40*10^6, 55*10^6, bin_dist_range = c(0,20), ins_delta_range = c(2,Inf))
+
+    comb_ins_dt = list_dt2tall_dt(lapply(my_hicsd, function(x)x@hic_1d))
+    comb_ins_dt[, mid := (start + end) / 2]
+
+    dc_comb_ins_dt = dcast(comb_ins_dt[, c("index", "value", "group", "mid")],
+                           formula = index + mid ~ group,
+                           value.var = "value")
+    val_cn = colnames(dc_comb_ins_dt)[-1:-2]
+    raw_mat = as.matrix(dc_comb_ins_dt[,val_cn, with = F])
+
+    normq_mat = preprocessCore::normalize.quantiles(raw_mat)
+    for(i in 1:ncol(normq_mat)){
+        dc_comb_ins_dt[,val_cn[i]] = normq_mat[,i]
+    }
+    return(list(normq_mat, dc_comb_ins_dt))
+}
+
+ggplot_ref = function(gene_gr, qgr, label_method = c("text", "label", "none")[1],
+                      gene_types = "protein_coding", highlight_gene_names = "",
+                      highlight_gene_color = "red",
+                      olap_extension = .03,top_spacer = .8, strand_colors = c("+" = "gray0", "-" = "gray40"),
+                      arrow_override = arrow(ends = "last", length = unit(.045, "npc")),
+                      line_size = 2, line_end = c("round", "butt", "square")[2],
+                      text_hjust = 0, text_vjust = -1.5, text_angle = 30, text_size = 3.5,
+                      text_x_relative = .5, text_y_relative = .1
+){
+    pdt = as.data.table(subsetByOverlaps(gene_gr[gene_gr$gene_type %in% gene_types], qgr))
+    pdt[, y := -1]
+    pgr = GRanges(pdt)
+    ext = (end(qgr) - start(qgr)) * olap_extension
+    egr = pgr
+    start(egr) = start(egr) - ext
+    end(egr) = end(egr) + ext
+    to_decide = 1:nrow(pdt)
+    i = 0
+    while(length(to_decide) > 0){
+        to_keep = numeric()
+        to_move = numeric()
+        olaps =  as.data.table(findOverlaps(egr[to_decide], egr[to_decide], ignore.strand = T))
+        olaps = olaps[queryHits < subjectHits]
+        olaps$queryHits = to_decide[olaps$queryHits]
+        olaps$subjectHits = to_decide[olaps$subjectHits]
+        setkey(olaps, queryHits, subjectHits)
+        to_keep = setdiff(to_decide, union(olaps$queryHits, olaps$subjectHits))
+        sapply(unique(olaps$queryHits), function(x){
+            if(any(x == c(to_keep, to_move))) return()
+            to_keep <<- c(to_keep, x)
+            to_move <<- union(to_move, olaps[.(x)]$subjectHits)
+            olaps <<- olaps[!.(c(to_move, to_keep))]
+        })
+        pdt[to_keep]$y = i
+        i = i + 1
+        to_decide = to_move
+    }
+    pdt[strand == "-", start := end]
+    pdt[strand == "-", end := start]
+    pdt[y == -1, y := 0]
+    pdt[, txt_x := min(start, end) + abs(end - start)*text_x_relative, by = gene_id ]
+    pdt[, txt_y := y + text_y_relative, by = gene_id ]
+    p = ggplot() +
+        geom_segment(data = pdt,
+                     aes(x = start, xend = end, y = y, yend = y, col = strand, size = line_size),
+                     lineend = line_end,
+                     arrow = arrow_override) +
+        labs(x = "", y = "") +
+        scale_size_identity() +
+        scale_color_manual(values = strand_colors) +
+        coord_cartesian(xlim = c(start(qgr), end(qgr)),
+                        ylim = c(0, max(pdt$y) + top_spacer)) +
+        scale_y_continuous(breaks = NULL)
+    if(label_method == "text"){
+        p = p + annotate("text", label = pdt$gene_name, x = pdt$txt_x, y = pdt$txt_y,
+                         color = ifelse(pdt$gene_name %in% highlight_gene_names, highlight_gene_color[1], "black"),
+                         hjust = text_hjust, vjust = text_vjust, angle = text_angle, size = text_size)
+    }else if(label_method == "label"){
+        xpos = pdt[, (start + end) / 2]
+        p = p + annotate("label", label = pdt$gene_name, x = pdt$txt_x, y = pdt$txt_y,
+                         color = ifelse(pdt$gene_name %in% highlight_gene_names, highlight_gene_color[1], "black"),
+                         hjust = .5, vjust = text_vjust, angle = text_angle, size = text_size)
+    }
+    return(p)
+}
+
+ggplot_list = function(my_plots, top_text = "", bottom_text = "position", heights = rep(1, length(my_plots))){
+    options(warn = -1)
+    my_plots[[length(my_plots)]] = my_plots[[length(my_plots)]] + scale_x_continuous(labels = function(x)paste(x/10^6, "Mb"))
+    my_plots[[length(my_plots)]] = my_plots[[length(my_plots)]] + labs(x = bottom_text)
+
+    for(i in 1:(length(my_plots) - 1)){
+        if(i < 1) next
+        my_plots[[i]] = my_plots[[i]] + scale_x_continuous(labels = NULL)
+        my_plots[[i]] = my_plots[[i]] + labs(x = "")
+    }
+    options(warn = 1)
+
+    my_grobs = lapply(my_plots, function(x){
+        ggplotGrob(x)
+    })
+
+    #removes clipping like par(xpd = NA or maybe xpd = T)
+    my_grobs = lapply(my_grobs, function(gt){
+        gt$layout$clip[gt$layout$name == "panel"] = "off"
+        gt
+    })
+
+    my_widths = lapply(my_grobs, function(gt){
+        gt$widths
+    })
+
+    # if(exists("maxWidth")) remove(maxWidth)
+    maxWidth = my_widths[[1]]
+    if(length(my_widths) > 1){
+        for(i in 2:length(my_widths)){
+            maxWidth = unit.pmax(maxWidth, my_widths[[i]])
+        }
+    }
+    for(j in 1:length(my_grobs)){
+        my_grobs[[j]]$widths = maxWidth
+    }
+    grid.arrange(arrangeGrob(grobs = my_grobs, ncol=1,heights=heights), top = top_text, newpage = F)
+}
+
+
+add_arch_plot = function(hic_mat, qgr, min_arch_dist = 1*10^6, n_arch = 50, p = NULL){
+    chr = as.character(seqnames(qgr))
+    start = start(qgr) + 1
+    end = end(qgr)
+    arch_dt = hic_mat[chr, start:end][!is.na(val)]
+    arch_start = hic_mat@hic_1d[arch_dt$i, (start + end) / 2]
+    arch_end = hic_mat@hic_1d[arch_dt$j, (start + end) / 2]
+    arch_gr = GRanges(chr, IRanges(arch_start, arch_end))
+    arch_gr$value = arch_dt$val
+    k = width(arch_gr) > min_arch_dist
+    arch_gr = arch_gr[k]
+    arch_gr = arch_gr[order(arch_gr$value, decreasing = T)][1:min(n_arch, length(arch_gr))]
+    if(is.null(p)) p = ggplot()
+    p + geom_arch(data = arch_gr, aes(height = value)) + coord_cartesian(xlim = c(start(qgr), end(qgr))) +
+        labs(y = "interaction")
+}
+
+#plotting of filtered hic_dt
+ggplot_hic_matrix = function(hic_dt, bin_size){
+
+}
+
+add_matrix_plot = function(hic_mat, qgr,
+                           tile_type = c("diamond", "hex")[1],
+                           max_dist = 10*10^6,
+                           point_size = 3,
+                           text_size = 4,
+                           max_fill = NULL,
+                           hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
+                           minmax2col = c("min" = "orange", "max" = "green"),
+                           show_insulation_range = T,
+                           show_min = T,
+                           show_max = F,
+                           p = NULL){
+    # print("plot from data_source.hic_matrix")
+    bin_size = hic_mat@parameters@bin_size
+    # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
+    chr = as.character(seqnames(qgr))
+    start = start(qgr)
+    end = end(qgr)
+    hicrng = hic_mat[chr, c(start,end)]
+    MIN_I = min(c(hicrng$i, hicrng$j))
+    XMIN = subset(hic_mat@hic_1d, index == MIN_I)$start
+    MAX_I = max(c(hicrng$i, hicrng$j))
+    XMAX = subset(hic_mat@hic_1d, index == MAX_I)$end
+    hicrng[, x := (i + j) /2 ]
+    hicrng[, y := abs(i - j)]
+
+    hicrng = hicrng[j > i] #limit to upper triangle
+    hicrng = na.omit(hicrng) #leave out zero signal regions
+
+    index2center = function(index){
+        (index - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2
+    }
+
+    hicrng[, x_chr := index2center(x)]
+    hicrng[, y_chr := bin_size * y]
+
+    if(tile_type == "hex"){
+        df = hex_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
+        df = cbind(df, fill=rep(hicrng$val, each=6))
+    }else if(tile_type == "diamond"){
+        df = diamond_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
+        df = cbind(df, fill=rep(hicrng$val, each=4))
+    }else{
+        stop("tile_type must match hex or diamond")
+    }
+    #pretty up break positions to be multiple of bin_size
+    ylab = sort(unique(df$y))
+    nlab = 6
+    yfac = min(ceiling(max_dist / nlab / bin_size) * bin_size, #when max_dist is less than start to end
+               ceiling(length(ylab) / nlab) * bin_size) #when start and end are less than max_dist
+    breaks = 0:nlab * yfac
+
+    fill_lab = "interaction"
+    if(!is.null(max_fill)){
+        df$fill[df$fill > max_fill] = max_fill
+        fill_lab = paste(fill_lab, "\ncapped at", max_fill)
+    }
+    df = subset(df, y <= max_dist)
+    if(is.null(hic_mat@hic_1d$value)){
+        show_insulation_range = F
+        show_max = F
+        show_min = F
+        warning("no insulation data supplied")
+    }else{
+        mmdf = make_hic_minmax_df(dt_1d = hic_mat@hic_1d, qgr)
+        mmdf$minmax = sapply(as.character(mmdf$id), function(x)switch(x, "-1" = "min", "0" = "-", "1" = "max"))
+        ann_df = subset(mmdf, id != 0)
+    }
+    if(length(minmax2col) != 2 & !all(names(minmax2col) == c("min", "max"))){
+        warning("supplied minmax2col not valid, must be length 2 and have names = c('min', 'max')")
+        minmax2col = c("min" = "orange", "max" = "green")
+    }
+
+    if(is.null(p)) p = ggplot()
+    p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id)) +
+        scale_fill_gradientn(colours = hmap_colors) +
+        labs(x = "", y = "distance", fill = fill_lab) +
+        scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
+        coord_cartesian(xlim = c(start, end))
+
+    if(exists("ann_df")) if(nrow(ann_df) > 0){
+        if(show_max){
+            max_df = subset(ann_df, minmax == "max")
+            #display triangles along bottom of plot indicating maxima positions
+            p = p + annotate("point",
+                             x = max_df$x,
+                             y = 0 - max(df$y)*.05,
+                             fill = minmax2col[max_df$minmax],
+                             color = "#00000000",
+                             size = point_size,
+                             stroke = 1.5,
+                             shape = 24)
+            #triangle for in plot key in top-right position
+            p = p + annotate("point",
+                             x = start + (end - start)*.9,
+                             y = max(df$y)*.88,
+                             fill = minmax2col["max"],
+                             color = "#00000000",
+                             size = point_size,
+                             stroke = 1.5,
+                             shape = 24)
+            #text for in plot key
+            p = p + annotate("text",
+                             label = "maxima",
+                             x = start + (end - start)*.92,
+                             y = max(df$y)*.89,
+                             color = minmax2col["max"],
+                             size = text_size,
+                             hjust = 0,
+                             vjust = .5)
+        }
+        if(show_min){
+            min_df = subset(ann_df, minmax == "min")
+            #plot triangles along bottom indicating minima positions
+            p = p + annotate("point",
+                             x = min_df$x,
+                             y = 0 - max(df$y)*.03,
+                             fill = minmax2col[min_df$minmax],
+                             color = "#00000000",
+                             size = point_size,
+                             stroke = 1.5,
+                             shape = 25)
+            #triangle for in plot key in top right
+            p = p + annotate("point",
+                             x = start + (end - start)*.9,
+                             y = max(df$y)*.95,
+                             fill = minmax2col["min"],
+                             color = "#00000000",
+                             size = point_size,
+                             stroke = 1.5,
+                             shape = 25)
+            #text for in plot key in top right
+            p = p + annotate("text",
+                             label = "minima",
+                             x = start + (end - start)*.92,
+                             y = max(df$y)*.95,
+                             color = minmax2col["min"],
+                             size = text_size,
+                             hjust = 0,
+                             vjust = .5)
+        }
+    }
+
+    if(show_insulation_range){
+        #horizontal black line indicating maximum distance considered when calcing insulation
+        p = p + annotate("line",
+                         x = c(start, end),
+                         y = hic_mat@parameters@n_insulation_bins * hic_mat@parameters@bin_size)
+        #text label for insulation range line
+        p = p + annotate("text",
+                         label = "insulation\nbin range",
+                         x = c(end),
+                         y = hic_mat@parameters@n_insulation_bins * hic_mat@parameters@bin_size,
+                         size = text_size,
+                         hjust = 1,
+                         vjust = -.2)
+    }
+    return(p)
+}
+
+#creates data.frame containing min and max info for insulation profiles
+make_hic_minmax_df = function(dt_1d, qgr){
+    chr = as.character(seqnames(qgr))
+    start = start(qgr) + 1
+    end = end(qgr)
+
+    gr = GRanges(dt_1d)
+    start(gr) = start(gr) + 1
+    q_gr = GRanges(chr, IRanges(start, end))
+    q_indexes = dt_1d[subjectHits(findOverlaps(query = q_gr, subject = gr))]$index
+    dt_1d = dt_1d[q_indexes]
+    dt_1d[, xs := (start + end) / 2]
+    max_k = dt_1d$minmax == 1
+    max_k[is.na(max_k)] = F
+    min_k = dt_1d$minmax == -1
+    min_k[is.na(min_k)] = F
+    insulation_df = data.frame(x = dt_1d$xs, y = dt_1d$value, id = 0, type = "insulation")
+    if(any(max_k)){
+        insulation_df = rbind(insulation_df,
+                              data.frame(x = dt_1d$xs[max_k], y = dt_1d$value[max_k], id = 1, type = "insulation"))
+    }
+    if(any(min_k)){
+        insulation_df = rbind(insulation_df,
+                              data.frame(x = dt_1d$xs[min_k], y = dt_1d$value[min_k], id = -1, type = "insulation"))
+    }
+    return(insulation_df)
+}
+
+library(rtracklayer)
+library(pbapply)
+#windowed view of bigwig file, filtered by qgr if supplied
+fetch_windowed_bw = function(bw_file, win_size = 50, qgr = NULL){
+    if(is.null(qgr)){
+        bw_gr = import.bw(bw_file)
+    }else{
+        bw_gr = import.bw(bw_file, which = qgr)
+    }
+
+    rng = range(bw_gr)
+    start(rng) = start(rng) - start(rng) %% win_size + 1
+    end(rng) = end(rng) - end(rng) %% win_size + win_size
+    # end(rng) = ceiling(end(rng)/win_size) * win_size
+    win = slidingWindows(rng, width = win_size, step = win_size)
+    print(object.size(win), units = "GB")
+    print(object.size(bw_gr), units = "GB")
+    win = unlist(win)
+    sn = names(seqlengths(win))
+    names(sn) = sn
+    suppressWarnings({
+        new_seqlengths = pbsapply(sn, function(x){
+
+            max(end(subset(win, seqnames == x)))
+
+        })
+        seqlengths(win) = new_seqlengths
+        seqlengths(bw_gr) = seqlengths(win)
+    })
+    mid_gr = function(gr){
+        start(gr) + floor((width(gr) - 1)/2)
+    }
+    mids = mid_gr(win)
+    start(win) = mids
+    end(win) = mids
+    olaps = findOverlaps(win, bw_gr)
+    win = win[queryHits(olaps)]
+    win$FE = bw_gr[subjectHits(olaps)]$score
+    return(win)
+}

@@ -1,0 +1,11 @@
+exportPattern("^[[:alpha:]]+")
+import(data.table, except = c("shift", "first", "second"))
+import("pbapply")
+import("GenomicRanges")
+import("ggplot2")
+import("grid")
+import("gridExtra")
+import("ggbio")
+import("gplots")
+import("Rcpp")
+
