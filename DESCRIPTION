@@ -1,14 +1,23 @@
 Package: dthic
 Type: Package
-Title: What the Package Does (Title Case)
+Title: HiC analysis using data.table
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Authors@R: person("Joseph R", "Boyd", email = "jrboyd@uvm.edu",
+                  role = c("aut", "cre"))
+Description: A HiC analysis package (requires binned values) that makes heavy use of data.table
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Depends: GenomicRanges, ggplot2
-Imports: pbapply, grid, gridExtra, ggbio, gplots, Rcpp, data.table
+Depends: 
+    GenomicRanges, 
+    ggplot2
+Imports: 
+    pbapply, 
+    grid, 
+    gridExtra, 
+    ggbio, 
+    gplots, 
+    Rcpp, 
+    data.table
 LinkingTo: Rcpp
+RoxygenNote: 6.0.1

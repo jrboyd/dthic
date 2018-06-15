@@ -7,7 +7,7 @@
 
 
 
-HiC_matrix = setClass(Class = "HiC_matrix",
+setClass(Class = "HiC_matrix",
 
                       slots = c(
                         matrix_file = "character",
@@ -34,14 +34,14 @@ HiC_matrix = setClass(Class = "HiC_matrix",
                       }
 )
 
-setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_file, hic_parameters) {
+setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_file, parameters) {
   # print(matrix_file)
-  if(missing(matrix_file) & missing(regions_file) & missing(hic_parameters)){
+  if(missing(matrix_file) & missing(regions_file) & missing(parameters)){
     return(.Object)
   }
   .Object@matrix_file = matrix_file
   .Object@regions_file = regions_file
-  .Object@parameters = hic_parameters
+  .Object@parameters = parameters
 
   ###load tall hic_2d data
   mat_dt = fread(matrix_file)
@@ -71,6 +71,7 @@ setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_fil
   }
   #hic_2d must be keyed by i and j for rapid access
   setkey(mat_dt, i, j)
+  setkey(bed_dt, index)
   #set final hic_2d and hic_1d
   .Object@hic_2d = mat_dt
   .Object@hic_1d = bed_dt
@@ -81,6 +82,38 @@ setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_fil
   .Object
 
 })
+
+#' HiC_matrix constructor
+#'
+#' @param matrix_file HiC-Pro matrix file
+#' @param regions_file HiC-Pro region bed file matching matrix file
+#' @param parameters HiC_parameters object
+#'
+#' @return
+#' @export
+#'
+#' @examples
+HiC_matrix = function(matrix_file, regions_file = NULL, parameters = NULL){
+    if(is.null(regions_file)){
+        #fix ice first
+        mfile = matrix_file
+        mfile = sub("_iced.matrix$", ".matrix", mfile)
+        mfile = sub("/iced/", "/raw/", mfile)
+        regions_file = sub("\\.matrix$", "_abs.bed", mfile)
+        if(!file.exists(regions_file)){
+            stop("could not auto determine valid regions_file, please supply.")
+        }
+    }
+    if(is.null(parameters)){
+        tst = read.table(regions_file, nrows = 2)
+        bin_size = tst[2, 2] - tst[1, 2]
+        parameters = HiC_parameters(bin_size = bin_size)
+    }
+    new("HiC_matrix",
+        matrix_file = matrix_file,
+        regions_file = regions_file,
+        parameters = parameters)
+}
 
 setMethod("show", "HiC_matrix",
           function(object) {

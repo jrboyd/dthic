@@ -2,8 +2,8 @@
 #comparable HiC_matrixes should have identical HiC_parameters
 
 
-HiC_parameters = setClass(Class = "HiC_parameters", 
-                      
+setClass(Class = "HiC_parameters",
+
                       slots = c(
                         bin_size = "integer",
                         diagonal_removed = "logical",
@@ -15,8 +15,8 @@ HiC_parameters = setClass(Class = "HiC_parameters",
                         min_insulation_distance = "numeric",
                         min_insulation_coverage = "numeric",
                         n_delta_bins = "integer"
-                      )#, 
-                      # 
+                      )#,
+                      #
                       # validity = function(object){
                       #   errors <- character()
                       #   if (!all(colnames(object@matrix) == c("i", "j", "val"))){
@@ -31,9 +31,9 @@ HiC_parameters = setClass(Class = "HiC_parameters",
                       # }
 )
 
-setMethod("initialize", "HiC_parameters", function(.Object, 
-                                                   bin_size = 40000, 
-                                                   diagonal_removed = T,
+setMethod("initialize", "HiC_parameters", function(.Object,
+                                                   bin_size = 40000,
+                                                   diagonal_removed = F,
                                                    canonical_chr_only = T,
                                                    depth_normalization = T,
                                                    quantile_normalization = F,
@@ -62,6 +62,29 @@ setMethod("initialize", "HiC_parameters", function(.Object,
   .Object@n_delta_bins = as.integer(n_delta_bins)
   return(.Object)
 })
+
+HiC_parameters = function(bin_size = 40000,
+                          diagonal_removed = T,
+                          canonical_chr_only = T,
+                          depth_normalization = T,
+                          quantile_normalization = F,
+                          log2_over_mean_normalization = T,
+                          n_insulation_bins = "auto",
+                          min_insulation_distance = 0,
+                          min_insulation_coverage = .3,
+                          n_delta_bins = "auto"){
+    new("HiC_parameters",
+        bin_size = bin_size,
+        diagonal_removed = diagonal_removed,
+        canonical_chr_only = canonical_chr_only,
+        depth_normalization = depth_normalization,
+        quantile_normalization = quantile_normalization,
+        log2_over_mean_normalization = log2_over_mean_normalization,
+        n_insulation_bins = n_insulation_bins,
+        min_insulation_distance = min_insulation_distance,
+        min_insulation_coverage = min_insulation_coverage,
+        n_delta_bins = n_delta_bins)
+}
 
 setMethod("show", "HiC_parameters", function(object){
   slots = names(getSlots("HiC_parameters"))
