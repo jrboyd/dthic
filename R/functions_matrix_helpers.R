@@ -30,7 +30,7 @@ subset_dt = function(dt, i_range, j_range, fill_square = FALSE){
         rep(x, length(i_range))
     }))
     if(fill_square){
-        out = unique(rbind(dt[.(qi, qj)][!is.na(val)],
+        out = unique(rbind(dt[.(qi, qj), .(i = j, j = i, val)][!is.na(val)],
                            dt[.(qj, qi), .(i = j, j = i, val)][!is.na(val)]))
         out = out[i %in% i_range & j %in% j_range]
 
@@ -54,7 +54,7 @@ subset_dt = function(dt, i_range, j_range, fill_square = FALSE){
 #'
 #' @examples
 fetch_hic_byGRanges = function(hic_mat, gr1, gr2 = gr1, ext = 0){
-    stopifnot(any(class(hic_mat) == "HiC_matrix"))
+    stopifnot(class(hic_mat) %in% c("HiC_matrix", "HiC_matrix_wInsulation"))
     stopifnot(class(gr1) == "GRanges")
     stopifnot(class(gr2) == "GRanges")
     idx1 = get_chrRange_indexes(hic_mat@hic_1d,
@@ -139,10 +139,19 @@ list_dt2tall_dt = function(list_dt, new_col = NULL, show_progress = T){
 }
 
 
-#calculates z-score of log2 transformed data
-#z-scores are segmented by chromosome and by distance from diagonal
-#returns recalculated HiC_matrix_wInsulation
-apply_diagonal_zscore = function(hic_mat){
+
+#' apply_diagonal_zscore
+#'
+#' calculates z-score of log2 transformed data
+#' z-scores are segmented by chromosome and by distance from diagonal
+#' returns recalculated HiC_matrix_wInsulation
+#' @param hic_mat
+#'
+#' @return
+#' @export
+#'
+#' @examples
+apply_diagonal_zscore = function(hic_mat, include_hetero_chr = FALSE){
     test_dt = hic_mat@hic_2d
     test_reg = hic_mat@hic_1d
 
@@ -157,21 +166,41 @@ apply_diagonal_zscore = function(hic_mat){
     setkey(test_dt, index_diff, seqnames.x, seqnames.y)
 
     print("calculating z-scores...")
+    if(include_hetero_chr){
+        het_dt = test_dt[seqnames.y != seqnames.x, .(i, j, val)]
+        het_dt = het_dt[, .(i, j, val = (val - mean(val, na.rm = T)) / sd(val, na.rm = T))]
+    }
     test_dt = test_dt[seqnames.y == seqnames.x, ]
     test_dt = test_dt[, .(i, j, val, seqnames = seqnames.x, index_diff)]
     #ninja data.table segmented z-score calculation - kachow
-    test_z_dt = test_dt[, .(i, j, val = (val - mean(val, na.rm = T)) / sd(val, na.rm = T)), by = c("index_diff", "seqnames")]
+    test_dt = test_dt[, .(i, j, val = (val - mean(val, na.rm = T)) / sd(val, na.rm = T)), by = c("index_diff", "seqnames")]
+    test_dt$index_diff = NULL
+    test_dt$seqnames = NULL
 
-    setkey(test_z_dt, i, j)
-    test_z_dt = test_z_dt[!is.na(val),]
+    if(include_hetero_chr){
+        test_dt = rbind(test_dt, het_dt)
+    }
 
-    hic_mat@hic_2d = test_z_dt
+    setkey(test_dt, i, j)
+    test_dt = test_dt[!is.na(val),]
+
+    hic_mat@hic_2d = test_dt
     hic_mat@hic_1d = hic_mat@hic_1d[,1:4]
     hic_mat@parameters@log2_over_mean_normalization = F
     return(HiC_matrix_wInsulation(hic_mat))
 }
 
 
+#' decrease_resolution
+#'
+#' @param hic_mat
+#' @param pool_factor
+#' @param calc_insulation
+#'
+#' @return
+#' @export
+#'
+#' @examples
 decrease_resolution = function(hic_mat, pool_factor, calc_insulation = F){
     bin_size = hic_mat@parameters@bin_size
     newb_size = bin_size * pool_factor
@@ -217,7 +246,17 @@ decrease_resolution = function(hic_mat, pool_factor, calc_insulation = F){
     return(new_hic)
 }
 
-#sparse data.table to dense matrix conversions
+#
+#' mat2dt
+#'
+#' dense matrix to sparse data.table
+#'
+#' @param mat
+#'
+#' @return
+#' @export
+#'
+#' @examples
 mat2dt = function(mat){
     dt2 = as.data.table(mat)
     colnames(dt2) = as.character(1:ncol(dt2))
@@ -227,6 +266,17 @@ mat2dt = function(mat){
     dt2m$j = as.integer(dt2m$j)
     return(dt2m)
 }
+
+#' dt2mat
+#'
+#' sparse data.table to dense matrix conversions
+#'
+#' @param dt
+#'
+#' @return
+#' @export
+#'
+#' @examples
 dt2mat = function(dt){
     adj_i = dt[, min(i)] - 1
     adj_j = dt[, min(j)] - 1

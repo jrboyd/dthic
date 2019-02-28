@@ -5,35 +5,6 @@
 #   http://www.nature.com/nature/journal/v523/n7559/full/nature14450.html
 #
 
-
-
-setClass(Class = "HiC_matrix",
-
-                      slots = c(
-                        matrix_file = "character",
-                        regions_file = "character",
-                        parameters = "HiC_parameters",
-                        hic_2d = "data.table",
-                        hic_1d = "data.table"
-
-                      ),
-
-                      validity = function(object){
-                        errors <- character()
-                        mat_cnames = c("i", "j", "val")
-                        if (length(intersect(colnames(object@hic_2d), mat_cnames)) != length(mat_cnames)){
-                          msg <- "colnames of hic_2d must be c(i, j, val)"
-                          errors <- c(errors, msg)
-                        }
-                        reg_cnames = c("seqnames", "start", "end", "index")
-                        if (length(intersect(colnames(object@hic_1d), reg_cnames)) != length(reg_cnames)){
-                          msg <- "colnames of hic_1d must be c(seqnames, start, end, index)"
-                          errors <- c(errors, msg)
-                        }
-                        if (length(errors) == 0) TRUE else errors
-                      }
-)
-
 setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_file, parameters) {
   # print(matrix_file)
   if(missing(matrix_file) & missing(regions_file) & missing(parameters)){
@@ -91,6 +62,8 @@ setMethod("initialize", "HiC_matrix", function(.Object, matrix_file, regions_fil
 #'
 #' @return
 #' @export
+#' @import data.table
+#' @import pbapply
 #'
 #' @examples
 HiC_matrix = function(matrix_file, regions_file = NULL, parameters = NULL){

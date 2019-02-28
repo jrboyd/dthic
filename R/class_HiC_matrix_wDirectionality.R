@@ -1,6 +1,6 @@
 
 
-HiC_matrix_wDirectionality = setClass(Class = "HiC_matrix_wDirectionality", contains = "HiC_matrix")
+
 
 setMethod("initialize", "HiC_matrix_wDirectionality", function(.Object, base_HiC_matrix) {
   if(missing(base_HiC_matrix)){
@@ -74,7 +74,7 @@ score_directionality = function(hic_mat, n_directionality_bins){
   n_bins = n_directionality_bins
   print(paste("scoring directionality for ", length(all_chrms), "chromosomes..."))
   if(exists("scores_dt"))remove(scores_dt, pos = ".GlobalEnv")
-  hidden = pblapply(all_chrms, function(chr){
+  hidden = pbapply::pblapply(all_chrms, function(chr){
     s = hic_mat@hic_1d[seqnames == chr][1, start]
     e = hic_mat@hic_1d[seqnames == chr][.N, end]
     ins = directionality_of_chrRange(hic_mat, chr = chr, start = s, end = e)
@@ -126,4 +126,17 @@ recalculate_directionality = function(hic_matrix, directionality_distance = 2*10
   hic_matrix@parameters@n_delta_bins =
     as.integer(ceiling(delta_distance / hic_matrix@parameters@bin_size))
   HiC_matrix_wDirectionality(hic_matrix)
+}
+
+#' HiC_matrix_wDirectionality constructor
+#'
+#' @param hic_matrix a loaded HiC_matrix
+#'
+#' @return
+#' @export
+#'
+#' @examples
+HiC_matrix_wDirectionality = function(hic_matrix){
+    new("HiC_matrix_wDirectionality",
+        base_HiC_matrix = hic_matrix)
 }

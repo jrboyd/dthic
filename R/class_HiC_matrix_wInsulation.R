@@ -1,6 +1,5 @@
 
 
-HiC_matrix_wInsulation = setClass(Class = "HiC_matrix_wInsulation", contains = "HiC_matrix")
 
 setMethod("initialize", "HiC_matrix_wInsulation", function(.Object, base_HiC_matrix) {
   if(missing(base_HiC_matrix)){
@@ -13,7 +12,7 @@ setMethod("initialize", "HiC_matrix_wInsulation", function(.Object, base_HiC_mat
   }
 
   .Object@hic_1d = .Object@hic_1d[, .(index, seqnames, start, end)]
-  .Object@hic_2d = .Object@hic_2d[i != j]
+  # .Object@hic_2d = .Object@hic_2d[i != j]
   ###score insulation across each chromosome
   full_dt = score_insulation(.Object, .Object@parameters@n_insulation_bins)
 
@@ -42,7 +41,7 @@ score_insulation = function(hic_mat, n_insulation_bins){
   n_bins = n_insulation_bins
   print(paste("scoring insulation for ", length(all_chrms), "chromosomes..."))
   if(exists("scores_dt"))remove(scores_dt, pos = ".GlobalEnv")
-  hidden = pblapply(all_chrms, function(chr){
+  hidden = pbapply::pblapply(all_chrms, function(chr){
     s = hic_mat@hic_1d[seqnames == chr][1, start]
     e = hic_mat@hic_1d[seqnames == chr][.N, end]
     ins = insulation_of_chrRange(hic_mat, chr = chr, start = s, end = e)
@@ -94,4 +93,17 @@ recalculate_insulation = function(hic_matrix, insulation_distance = 5*10^5, delt
   hic_matrix@parameters@n_delta_bins =
     as.integer(ceiling(delta_distance / hic_matrix@parameters@bin_size))
   HiC_matrix_wInsulation(hic_matrix)
+}
+
+#' HiC_matrix_wInsulation constructor
+#'
+#' @param hic_matrix a loaded HiC_matrix
+#'
+#' @return
+#' @export
+#'
+#' @examples
+HiC_matrix_wInsulation = function(hic_matrix){
+    new("HiC_matrix_wInsulation",
+        base_HiC_matrix = hic_matrix)
 }

@@ -63,7 +63,7 @@ plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
         })
 
         #get max widths to assign to all
-        maxWidth = as.list(unit.pmax(p.list[[1]]$widths, p.list[[2]]$widths,
+        maxWidth = as.list(grid::unit.pmax(p.list[[1]]$widths, p.list[[2]]$widths,
                                      p.list[[3]]$widths, p.list[[4]]$widths,
                                      p.list[[5]]$widths, p.list[[6]]$widths, p.list[[7]]$widths))
         for(j in 1:length(p.list)){
@@ -420,7 +420,7 @@ ggplot_list = function(my_plots, top_text = "", bottom_text = "position", height
     maxWidth = my_widths[[1]]
     if(length(my_widths) > 1){
         for(i in 2:length(my_widths)){
-            maxWidth = unit.pmax(maxWidth, my_widths[[i]])
+            maxWidth = grid::unit.pmax(maxWidth, my_widths[[i]])
         }
     }
     for(j in 1:length(my_grobs)){
@@ -453,11 +453,29 @@ add_bigwig_plot = function(bigwig_file, chr, start, end, bigwig_title = "FE", p 
     return(p2)
 }
 
-add_arch_plot = function(hic_mat, qgr, min_arch_dist = 1*10^6, n_arch = 50, p = NULL){
+#' add_arch_plot
+#'
+#' @param hic_mat
+#' @param qgr
+#' @param src_gr
+#' @param min_arch_dist
+#' @param n_arch
+#' @param p
+#'
+#' @return
+#' @export
+#' @importFrom ggbio geom_arch
+#' @examples
+add_arch_plot = function(hic_mat, qgr, src_gr = qgr, min_arch_dist = 1*10^6, n_arch = 50, p = NULL){
+    qidx = subsetByOverlaps(GRanges(hic_mat@hic_1d), qgr)$index
+    srcidx = subsetByOverlaps(GRanges(hic_mat@hic_1d), src_gr)$index
+
     chr = as.character(seqnames(qgr))
-    start = start(qgr) + 1
-    end = end(qgr)
-    arch_dt = hic_mat[chr, start:end][!is.na(val)]
+    # start = start(qgr) + 1
+    # end = end(qgr)
+    # arch_dt = hic_mat[chr, start:end][!is.na(val)]
+    arch_dt = hic_mat@hic_2d[(i %in% qidx & j %in% srcidx) | (j %in% qidx & i %in% srcidx)]
+    arch_dt = arch_dt[val > 0]
     arch_start = hic_mat@hic_1d[arch_dt$i, (start + end) / 2]
     arch_end = hic_mat@hic_1d[arch_dt$j, (start + end) / 2]
     arch_gr = GRanges(chr, IRanges(arch_start, arch_end))
@@ -466,10 +484,31 @@ add_arch_plot = function(hic_mat, qgr, min_arch_dist = 1*10^6, n_arch = 50, p = 
     arch_gr = arch_gr[k]
     arch_gr = arch_gr[order(arch_gr$value, decreasing = T)][1:min(n_arch, length(arch_gr))]
     if(is.null(p)) p = ggplot()
-    p + geom_arch(data = arch_gr, aes(height = value)) + coord_cartesian(xlim = c(start(qgr), end(qgr))) +
+    p + ggbio::geom_arch(data = arch_gr, aes(height = value)) + coord_cartesian(xlim = c(start(qgr), end(qgr))) +
         labs(y = "interaction")
 }
 
+#' Title
+#'
+#' @param hic_mat
+#' @param qgr
+#' @param tile_type
+#' @param max_dist
+#' @param point_size
+#' @param text_size
+#' @param max_fill
+#' @param hmap_colors
+#' @param minmax2col
+#' @param show_insulation_range
+#' @param fill_limits
+#' @param show_min
+#' @param show_max
+#' @param p
+#'
+#' @return
+#' @export
+#'
+#' @examples
 add_matrix_plot = function(hic_mat, qgr,
                            tile_type = c("diamond", "hex")[1],
                            max_dist = 10*10^6,
@@ -479,6 +518,7 @@ add_matrix_plot = function(hic_mat, qgr,
                            hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
                            minmax2col = c("min" = "orange", "max" = "green"),
                            show_insulation_range = T,
+                           fill_limits = NULL,
                            show_min = T,
                            show_max = F,
                            p = NULL){
@@ -543,11 +583,22 @@ add_matrix_plot = function(hic_mat, qgr,
         minmax2col = c("min" = "orange", "max" = "green")
     }
 
+    if(is.null(fill_limits)){
+        fill_limits = range(df$fill)
+    }else{
+        if(length(fill_limits) == 1){
+            fill_limits = sort(c(-fill_limits, fill_limits))
+        }
+        fill_limits = range(fill_limits)
+        df$fill[df$fill > max(fill_limits)] = max(fill_limits)
+        df$fill[df$fill < min(fill_limits)] = min(fill_limits)
+    }
+
     if(is.null(p)) p = ggplot()
     p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id)) +
-        scale_fill_gradientn(colours = hmap_colors) +
+        scale_fill_gradientn(colours = hmap_colors, limits = fill_limits) +
         labs(x = "", y = "distance", fill = fill_lab) +
-        scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
+        scale_y_continuous(breaks = hic_equal_breaks(bin_size = ifelse(max_dist > 4e6, 1e6, bin_size), max_dist = max_dist)) +
         coord_cartesian(xlim = c(start, end))
 
     if(exists("ann_df")) if(nrow(ann_df) > 0){
@@ -629,3 +680,68 @@ add_matrix_plot = function(hic_mat, qgr,
     }
     return(p)
 }
+
+#' sync ggplot widths
+#'
+#' @param my_plots a list of ggplots
+#'
+#' @return a list of grobs wtih x margins all equal
+#' @import ggplot2
+#' @import grid
+#' @export
+#'
+#' @examples
+sync_width = function(my_plots){
+    stopifnot(class(my_plots) == "list")
+    stopifnot(all(sapply(my_plots, function(x)"ggplot" %in% class(x))))
+    my_grobs = lapply(my_plots, function(x){
+        ggplotGrob(x)
+    })
+
+    my_widths = lapply(my_grobs, function(gt){
+        gt$widths
+    })
+    maxWidth = my_widths[[1]]
+    if(length(my_widths) > 1){
+        for(i in 2:length(my_widths)){
+            maxWidth = grid::unit.pmax(maxWidth, my_widths[[i]])
+        }
+    }
+    for(j in 1:length(my_grobs)){
+        my_grobs[[j]]$widths = maxWidth
+    }
+    my_grobs
+}
+
+#' sync ggplot heights
+#'
+#' @param my_plots a list of ggplots
+#'
+#' @return a list of grobs wtih x margins all equal
+#' @import ggplot2
+#' @import grid
+#' @export
+#'
+#' @examples
+sync_height = function(my_plots){
+    stopifnot(class(my_plots) == "list")
+    stopifnot(all(sapply(my_plots, function(x)"ggplot" %in% class(x))))
+    my_grobs = lapply(my_plots, function(x){
+        ggplotGrob(x)
+    })
+
+    my_widths = lapply(my_grobs, function(gt){
+        gt$heights
+    })
+    maxWidth = my_widths[[1]]
+    if(length(my_widths) > 1){
+        for(i in 2:length(my_widths)){
+            maxWidth = grid::unit.pmax(maxWidth, my_widths[[i]])
+        }
+    }
+    for(j in 1:length(my_grobs)){
+        my_grobs[[j]]$heights = maxWidth
+    }
+    my_grobs
+}
+

@@ -1,6 +1,6 @@
 score_tadness = function(dt){
     if(exists("score_dt")) remove(score_dt, pos = ".GlobalEnv")
-    hidden = pblapply(unique(dt$seqnames), function(chr){
+    hidden = pbapply::pblapply(unique(dt$seqnames), function(chr){
         chr_dt = dt[seqnames == chr] # & value > -10] #-10 indicator values removed
         min_dt = chr_dt[minmax == -1 & !is.na(delta) & value < 0] # minima must be below 0 value
         hidden =  lapply(min_dt$index, function(ind){

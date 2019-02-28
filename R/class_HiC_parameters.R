@@ -2,34 +2,7 @@
 #comparable HiC_matrixes should have identical HiC_parameters
 
 
-setClass(Class = "HiC_parameters",
 
-                      slots = c(
-                        bin_size = "integer",
-                        diagonal_removed = "logical",
-                        canonical_chr_only = "logical",
-                        depth_normalization = "logical",
-                        quantile_normalization = "logical",
-                        log2_over_mean_normalization = "logical",
-                        n_insulation_bins = "integer",
-                        min_insulation_distance = "numeric",
-                        min_insulation_coverage = "numeric",
-                        n_delta_bins = "integer"
-                      )#,
-                      #
-                      # validity = function(object){
-                      #   errors <- character()
-                      #   if (!all(colnames(object@matrix) == c("i", "j", "val"))){
-                      #     msg <- "colnames of matrix must be c(i, j, val)"
-                      #     errors <- c(errors, msg)
-                      #   }
-                      #   if (!all(colnames(object@regions) == c("seqnames", "start", "end", "index"))){
-                      #     msg <- "colnames of regions must be c(seqnames, start, end, index)"
-                      #     errors <- c(errors, msg)
-                      #   }
-                      #   if (length(errors) == 0) TRUE else errors
-                      # }
-)
 
 setMethod("initialize", "HiC_parameters", function(.Object,
                                                    bin_size = 40000,
@@ -63,6 +36,23 @@ setMethod("initialize", "HiC_parameters", function(.Object,
   return(.Object)
 })
 
+#' HiC_parameters
+#'
+#' @param bin_size
+#' @param diagonal_removed
+#' @param canonical_chr_only
+#' @param depth_normalization
+#' @param quantile_normalization
+#' @param log2_over_mean_normalization
+#' @param n_insulation_bins
+#' @param min_insulation_distance
+#' @param min_insulation_coverage
+#' @param n_delta_bins
+#'
+#' @return
+#' @export
+#'
+#' @examples
 HiC_parameters = function(bin_size = 40000,
                           diagonal_removed = T,
                           canonical_chr_only = T,

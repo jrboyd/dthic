@@ -1,11 +1,4 @@
-#class to ensure HiC_matrix objects are handled uniformly for analysis
-HiC_sample_set = setClass(Class = "HiC_sample_set",
 
-                          slots = c(
-                            HiC_matrix_list = "list",
-                            parameters = "HiC_parameters"
-                          )
-)
 
 setMethod("initialize", "HiC_sample_set", function(.Object, matrix_files, regions_files, parameters) {
  if(length(matrix_files) != length(regions_files)){
