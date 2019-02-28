@@ -21,3 +21,4 @@ Imports:
     data.table
 LinkingTo: Rcpp
 RoxygenNote: 6.1.0
+biocViews: HiC, HighThroughputSequencing, Sequencing, Software
