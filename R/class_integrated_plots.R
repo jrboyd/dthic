@@ -53,7 +53,7 @@ setMethod("initialize", "data_source.hic_insulation", function(.Object, hic_mat_
 setMethod("plot_from_data_source",
           signature = c("data_source.hic_insulation", "GenomicRanges"),
           definition = function(object, gr){
-            df = object@hic_mat_wIns@hic_1d[queryHits(findOverlaps(GRanges(object@hic_mat_wIns@hic_1d), gr))]
+            df = object@hic_mat_wIns@hic_1d[queryHits(findOverlaps(GRanges(object@hic_mat_wIns@hic_1d), gr, ignore.strand = TRUE))]
             df$value[df$value == -10] = NA
             df[, x := (start + end) / 2]
             df[, y := value]

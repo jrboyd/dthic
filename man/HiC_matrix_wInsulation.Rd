@@ -9,6 +9,9 @@ HiC_matrix_wInsulation(hic_matrix)
 \arguments{
 \item{hic_matrix}{a loaded HiC_matrix}
 }
+\value{
+
+}
 \description{
 HiC_matrix_wInsulation constructor
 }

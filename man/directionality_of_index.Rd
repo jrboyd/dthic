@@ -9,6 +9,9 @@ directionality_of_index(hic_matrix, pos_index, n_bins)
 \arguments{
 \item{n_bins}{}
 }
+\value{
+
+}
 \description{
 calculates the directionality index of
 pos_index position using n_bins in both directions

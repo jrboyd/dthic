@@ -4,16 +4,27 @@
 \alias{writeBigInteract_hicpro}
 \title{writeBigInteract_hicpro}
 \usage{
-writeBigInteract_hicpro(fhicpro, bed_file = sub(".matrix$", "_abs.bed",
-  fhicpro), group_name = NULL, output_root = NULL,
-  cols = seqsetvis::safeBrew(1), index_method = c("a", "b", "ab")[1],
-  remove_trans = TRUE, query_gr = NULL, max_dist = Inf,
-  min_value = 0, cleanup_interact = TRUE,
+writeBigInteract_hicpro(
+  fhicpro,
+  bed_file = sub(".matrix$", "_abs.bed", fhicpro),
+  group_name = NULL,
+  output_root = NULL,
+  cols = seqsetvis::safeBrew(1),
+  index_method = c("a", "b", "ab")[1],
+  remove_trans = TRUE,
+  query_gr = NULL,
+  max_dist = Inf,
+  min_value = 0,
+  cleanup_interact = TRUE,
   chr_sizes = "/slipstream/home/joeboyd/hg38_chrsizes.txt",
-  autosql = "/slipstream/home/joeboyd/autoSql_bigInteract.txt")
+  autosql = "/slipstream/home/joeboyd/autoSql_bigInteract.txt"
+)
 }
 \arguments{
 \item{autosql}{}
+}
+\value{
+
 }
 \description{
 writeBigInteract_hicpro

@@ -1,3 +1,4 @@
+.datatable.aware=TRUE
 setClass(Class = "HiC_parameters",
 
          slots = c(

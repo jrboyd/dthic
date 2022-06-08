@@ -4,11 +4,20 @@
 \alias{add_arch_plot}
 \title{add_arch_plot}
 \usage{
-add_arch_plot(hic_mat, qgr, src_gr = qgr, min_arch_dist = 1 * 10^6,
-  n_arch = 50, p = NULL)
+add_arch_plot(
+  hic_mat,
+  qgr,
+  src_gr = qgr,
+  min_arch_dist = 1 * 10^6,
+  n_arch = 50,
+  p = NULL
+)
 }
 \arguments{
 \item{p}{}
+}
+\value{
+
 }
 \description{
 add_arch_plot

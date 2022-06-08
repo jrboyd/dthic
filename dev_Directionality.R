@@ -3,17 +3,17 @@ hparm = HiC_parameters(bin_size = 40000, depth_normalization = FALSE)
 hic_mats = list(
     MCF10AT1 = HiC_matrix(matrix_file = "~/HiC-Pro/outputs/MCF10AT1_pooled/hic_results/matrix/pooled/iced/40000/pooled_40000_iced.matrix",
                           regions_file = "~/HiC-Pro/outputs/MCF10AT1_pooled/hic_results/matrix/pooled/raw/40000/pooled_40000_abs.bed",
-                          hic_parameters = hparm),
-    MCF10CA1a = HiC_matrix(matrix_file = "~/HiC-Pro/outputs/MCF10CA1a_pooled/hic_results/matrix/pooled/iced/40000/pooled_40000_iced.matrix",
-                           regions_file = "~/HiC-Pro/outputs/MCF10CA1a_pooled/hic_results/matrix/pooled/raw/40000/pooled_40000_abs.bed",
-                           hic_parameters = hparm),
-    HepG2 =
-        HiC_matrix(matrix_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/raw/40000/rep1_40000.matrix",
-                   regions_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/raw/40000/rep1_40000_abs.bed",
-                   hic_parameters = hparm) +
-        HiC_matrix(matrix_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep2/raw/40000/rep2_40000.matrix",
-                   regions_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep2/raw/40000/rep2_40000_abs.bed",
-                   hic_parameters = hparm)
+                          parameters = hparm)#,
+    # MCF10CA1a = HiC_matrix(matrix_file = "~/HiC-Pro/outputs/MCF10CA1a_pooled/hic_results/matrix/pooled/iced/40000/pooled_40000_iced.matrix",
+    #                        regions_file = "~/HiC-Pro/outputs/MCF10CA1a_pooled/hic_results/matrix/pooled/raw/40000/pooled_40000_abs.bed",
+    #                        hic_parameters = hparm),
+    # HepG2 =
+    #     HiC_matrix(matrix_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/raw/40000/rep1_40000.matrix",
+    #                regions_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/raw/40000/rep1_40000_abs.bed",
+    #                hic_parameters = hparm) +
+    #     HiC_matrix(matrix_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep2/raw/40000/rep2_40000.matrix",
+    #                regions_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep2/raw/40000/rep2_40000_abs.bed",
+    #                hic_parameters = hparm)
     # HepG2 =
     #     HiC_matrix(matrix_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/iced/40000/rep1_40000_iced.matrix",
     #                regions_file = "~/HiC-Pro/outputs/HepG2/hic_results/matrix/rep1/raw/40000/rep1_40000_abs.bed",

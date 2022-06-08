@@ -9,6 +9,9 @@ HiC_matrix_wDirectionality(hic_matrix)
 \arguments{
 \item{hic_matrix}{a loaded HiC_matrix}
 }
+\value{
+
+}
 \description{
 HiC_matrix_wDirectionality constructor
 }

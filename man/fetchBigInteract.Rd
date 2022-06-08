@@ -4,10 +4,13 @@
 \alias{fetchBigInteract}
 \title{fetchBigInteract}
 \usage{
-fetchBigInteract(bif, qgr, qgr2 = NULL)
+fetchBigInteract(bif, qgr, qgr2 = NULL, silent = FALSE)
 }
 \arguments{
-\item{qgr2}{}
+\item{silent}{if TRUE, no warnings will be shown. default is FALSE.}
+}
+\value{
+
 }
 \description{
 fetchBigInteract

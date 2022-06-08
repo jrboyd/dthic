@@ -168,7 +168,7 @@ get_chrRange_indexes = function(i_gr, chr, start, end){
   q_gr = GRanges(seqnames = chr, IRanges(start, end))
   start(i_gr) = start(i_gr) + 1
 
-  pos_indexes = subjectHits(findOverlaps(query = q_gr, subject = i_gr))
+  pos_indexes = subjectHits(findOverlaps(query = q_gr, subject = i_gr, ignore.strand = TRUE))
   if(!is.null(i_gr$index)) pos_indexes = i_gr$index[pos_indexes] #allow set index to override row number if present
   return(pos_indexes)
 }

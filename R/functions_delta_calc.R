@@ -12,8 +12,8 @@ find_maxima_minima = function(vals, n_delta_bins = 3, shift_type = c("extreme_va
     }))
     return(rightside - leftside)
   })
-  
-  
+
+
   #find where deltas cross zero - minima and maxima
   #return logical picking up the leftside of all such point pairs
   crosses_zero = apply(cbind(d[-1], d[-length(d)]), 1,
@@ -26,7 +26,7 @@ find_maxima_minima = function(vals, n_delta_bins = 3, shift_type = c("extreme_va
   #maxima go from increasing to decreasing, ie. leftside above zero
   is_maxima = d[cz] > 0
   is_minima = !is_maxima
-  
+
   if(shift_type == "delta_zero"){
     closest_to_zero = apply(cbind(d[cz], d[cz + 1]), 1, function(x){
       #lowest absolute value is closest to zero, first is selected in case of tie
@@ -34,15 +34,15 @@ find_maxima_minima = function(vals, n_delta_bins = 3, shift_type = c("extreme_va
     })
     cz_closest_to_zero = cz + closest_to_zero
   }
-  
+
   maxima_i = cz[is_maxima]
   minima_i = cz[is_minima]
-  
+
   if(shift_type == "extreme_val"){
     # maxima_shift = apply(cbind(vals[maxima_i], vals[maxima_i + 1]), 1, function(x){
     #   (which(abs(x) == max(abs(x))) - 1)[1]
     # })
-    # 
+    #
     # minima_shift = apply(cbind(vals[minima_i], vals[minima_i + 1]), 1, function(x){
     #   (which(abs(x) == min(abs(x))) - 1)[1]
     # })
@@ -59,15 +59,15 @@ find_maxima_minima = function(vals, n_delta_bins = 3, shift_type = c("extreme_va
         (which(vals[ir] == min(vals[ir])))[1] - n_delta_bins - 1
       })
       minima_i = minima_i + minima_shift
-      
-      
+
+
     }
   }
   return(list("vals" = vals, "d" = d, "maxima_i" = maxima_i, "minima_i" = minima_i))
 }
 
 score_minima = function(fmm){
-  
+
 }
 
 
@@ -78,13 +78,13 @@ plot_fmm_res = function(fmm, main = "", start_f = 0, end_f = 1, maxima_col = "gr
     xlim = fmm$xs[xlim]
     xs = fmm$xs
   }
-  
-  
+
+
   plot(x = xs, y = fmm$vals, xlim = xlim, type = "l", ylim = c(-2,2), ylab = "value")
   title(main)
   lines(x = xs, y = fmm$d, col = delta_col)
   lines(xlim, c(0,0), col = delta_col, lty  = 2)
-  
+
   points(xs[fmm$maxima_i], fmm$vals[fmm$maxima_i], col = maxima_col)
   for(i in fmm$maxima_i){
     lines(xs[rep(i, 2)], c(0, fmm$vals[i]), col = maxima_col)
@@ -102,20 +102,20 @@ ggplot_hic_delta = function(dt, chr, start, end){
   gr = GRanges(dt)
   start(gr) = start(gr) + 1
   q_gr = GRanges(chr, IRanges(start, end))
-  q_indexes = dt[subjectHits(findOverlaps(query = q_gr, subject = gr))]$index
+  q_indexes = dt[subjectHits(findOverlaps(query = q_gr, subject = gr, ignore.strand = TRUE))]$index
   dt = dt[q_indexes]
   dt[,xs := (start + end) / 2]
   max_k = dt$minmax == 1
   max_k[is.na(max_k)] = F
   min_k = dt$minmax == -1
   min_k[is.na(min_k)] = F
-  
+
   # grps = sapply(as.character(dt$minmax), function(x)switch(x, "1" = "max", "-1" = "min", "."))
   # names(grps) = NULL
   # dt[, minmax_grp := switch(as.character(minmax), "1" = "max", "-1" = "min")]
-  # dt$max_ys = 
-  p = ggplot(dt, aes(x = xs, y = value)) + geom_line() + 
-    # geom_line(mapping = aes(y = delta), col = "red") + 
+  # dt$max_ys =
+  p = ggplot(dt, aes(x = xs, y = value)) + geom_line() +
+    # geom_line(mapping = aes(y = delta), col = "red") +
     annotate(geom = "point", x = dt$xs[max_k], y = dt$value[max_k], col = "red") +
     annotate(geom = "point", x = dt$xs[min_k], y = dt$value[min_k], col = "blue")
   return(p)
@@ -126,7 +126,7 @@ ggplot_hic_delta.df = function(dt, chr, start, end){
   gr = GRanges(dt)
   start(gr) = start(gr) + 1
   q_gr = GRanges(chr, IRanges(start, end))
-  q_indexes = dt[subjectHits(findOverlaps(query = q_gr, subject = gr))]$index
+  q_indexes = dt[subjectHits(findOverlaps(query = q_gr, subject = gr, ignore.strand = TRUE))]$index
   dt = dt[q_indexes]
   dt[,xs := (start + end) / 2]
   max_k = dt$minmax == 1
@@ -135,11 +135,11 @@ ggplot_hic_delta.df = function(dt, chr, start, end){
   min_k[is.na(min_k)] = F
   insulation_df = data.frame(x = dt$xs, y = dt$value, id = 0, type = "insulation")
   if(any(max_k)){
-    insulation_df = rbind(insulation_df, 
+    insulation_df = rbind(insulation_df,
                           data.frame(x = dt$xs[max_k], y = dt$value[max_k], id = 1, type = "insulation"))
   }
   if(any(min_k)){
-    insulation_df = rbind(insulation_df, 
+    insulation_df = rbind(insulation_df,
                           data.frame(x = dt$xs[min_k], y = dt$value[min_k], id = -1, type = "insulation"))
   }
   return(insulation_df)

@@ -4,7 +4,7 @@ insulation_of_chrRange = function(hic_mat, chr, start, end){
     m_gr = GRanges(hic_mat@hic_1d)
     start(m_gr) = start(m_gr) + 1
     q_gr = GRanges(seqnames = chr, IRanges(start + 1, end))
-    pos_indexes = subjectHits(findOverlaps(query = q_gr, subject = m_gr))
+    pos_indexes = subjectHits(findOverlaps(query = q_gr, subject = m_gr, ignore.strand = TRUE))
     #pos_indexes have n_bins buffer from start or end of chromosome
     chr_indexes = m_gr[seqnames(m_gr) == chr]$index
     chr_len = length(chr_indexes)

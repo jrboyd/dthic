@@ -13,6 +13,9 @@ HiC_matrix(matrix_file, regions_file = NULL, parameters = NULL)
 
 \item{parameters}{HiC_parameters object}
 }
+\value{
+
+}
 \description{
 HiC_matrix constructor
 }

@@ -20,5 +20,5 @@ Imports:
     Rcpp, 
     data.table
 LinkingTo: Rcpp
-RoxygenNote: 6.1.0
+RoxygenNote: 7.1.2
 biocViews: HiC, HighThroughputSequencing, Sequencing, Software

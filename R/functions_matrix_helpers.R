@@ -1,4 +1,4 @@
-.datatable.aware=TRUE
+
 #these are helper function used by HiC_matrix internally but with possible general usefulness
 #these function "do the work" on basic classes.
 #HiC_matrix class functions feed appropriate slots to these helpers.

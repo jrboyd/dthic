@@ -1,3 +1,23 @@
+#' Title
+#'
+#' @param hic_list
+#' @param runx_bws
+#' @param ctcf_bws
+#' @param exons_gr
+#' @param max_dist
+#' @param hic_names
+#' @param target_gene
+#' @param extension_size_bp
+#' @param output_prefix
+#' @param n_arch
+#' @param min_arch_dist
+#' @param max_fill
+#' @param hmap_colors
+#'
+#' @return
+#' @export
+#'
+#' @examples
 plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
                              exons_gr = NULL, max_dist = NULL,
                              hic_names = names(hic_list),
@@ -76,6 +96,18 @@ plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
 
 }
 
+#' Title
+#'
+#' @param hic_mat
+#' @param chr
+#' @param start
+#' @param end
+#' @param hmap_colors
+#'
+#' @return
+#' @export
+#'
+#' @examples
 plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red")){
     bin_size = hic_mat@parameters@bin_size
     # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
@@ -124,6 +156,26 @@ plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray
     # ins_vals = ins_gr[queryHits(findOverlaps(ins_gr, GRanges(chr, IRanges(start, end))))]$value
 }
 
+#' Title
+#'
+#' @param hic_mat
+#' @param chr
+#' @param start
+#' @param end
+#' @param tile_type
+#' @param show_plot
+#' @param main_title
+#' @param max_dist
+#' @param point_size
+#' @param max_fill
+#' @param hmap_colors
+#' @param show_insulation_range
+#' @param show_minmax
+#'
+#' @return
+#' @export
+#'
+#' @examples
 plot_upperMatrix_with_insulation = function(hic_mat,
                                             chr, start, end,
                                             tile_type = c("diamond", "hex")[1],
@@ -324,6 +376,31 @@ ggplotList2grobList = function(ggplotList){
 }
 
 
+#' Title
+#'
+#' @param gene_gr
+#' @param qgr
+#' @param label_method
+#' @param gene_types
+#' @param highlight_gene_names
+#' @param highlight_gene_color
+#' @param olap_extension
+#' @param top_spacer
+#' @param strand_colors
+#' @param arrow_override
+#' @param line_size
+#' @param line_end
+#' @param text_hjust
+#' @param text_vjust
+#' @param text_angle
+#' @param text_size
+#' @param text_x_relative
+#' @param text_y_relative
+#'
+#' @return
+#' @export
+#'
+#' @examples
 ggplot_ref = function(gene_gr, qgr, label_method = c("text", "label", "none")[1],
                       gene_types = "protein_coding", highlight_gene_names = "",
                       highlight_gene_color = "red",
@@ -333,7 +410,9 @@ ggplot_ref = function(gene_gr, qgr, label_method = c("text", "label", "none")[1]
                       text_hjust = 0, text_vjust = -1.5, text_angle = 30, text_size = 3.5,
                       text_x_relative = .5, text_y_relative = .1
 ){
-    pdt = as.data.table(subsetByOverlaps(gene_gr[gene_gr$gene_type %in% gene_types], qgr))
+    pdt = as.data.table(subsetByOverlaps(gene_gr[gene_gr$gene_type %in% gene_types],
+                                         qgr,
+                                         ignore.strand = TRUE))
     pdt[, y := -1]
     pgr = GRanges(pdt)
     ext = (end(qgr) - start(qgr)) * olap_extension
@@ -467,8 +546,12 @@ add_bigwig_plot = function(bigwig_file, chr, start, end, bigwig_title = "FE", p 
 #' @importFrom ggbio geom_arch
 #' @examples
 add_arch_plot = function(hic_mat, qgr, src_gr = qgr, min_arch_dist = 1*10^6, n_arch = 50, p = NULL){
-    qidx = subsetByOverlaps(GRanges(hic_mat@hic_1d), qgr)$index
-    srcidx = subsetByOverlaps(GRanges(hic_mat@hic_1d), src_gr)$index
+    qidx = subsetByOverlaps(GRanges(hic_mat@hic_1d),
+                            qgr,
+                            ignore.strand = TRUE)$index
+    srcidx = subsetByOverlaps(GRanges(hic_mat@hic_1d),
+                              src_gr,
+                              ignore.strand = TRUE)$index
 
     chr = as.character(seqnames(qgr))
     # start = start(qgr) + 1

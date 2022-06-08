@@ -9,6 +9,9 @@ decrease_resolution(hic_mat, pool_factor, calc_insulation = F)
 \arguments{
 \item{calc_insulation}{}
 }
+\value{
+
+}
 \description{
 decrease_resolution
 }

@@ -9,6 +9,9 @@ mat2dt(mat)
 \arguments{
 \item{mat}{}
 }
+\value{
+
+}
 \description{
 dense matrix to sparse data.table
 }

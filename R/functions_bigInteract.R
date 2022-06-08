@@ -31,12 +31,13 @@ base_cmd = "bigBedToBed FETCHBI_FILE /dev/stdout -chrom=FETCHBI_CHR -start=FETCH
 #' @param bif
 #' @param qgr
 #' @param qgr2
+#' @param silent if TRUE, no warnings will be shown. default is FALSE.
 #'
 #' @return
 #' @export
 #'
 #' @examples
-fetchBigInteract = function(bif, qgr, qgr2 = NULL){
+fetchBigInteract = function(bif, qgr, qgr2 = NULL, silent = FALSE){
     chr = as.character(seqnames(qgr))
     s = start(qgr)
     e = end(qgr)
@@ -47,7 +48,13 @@ fetchBigInteract = function(bif, qgr, qgr2 = NULL){
     cmd = sub("FETCHBI_END", e, cmd)
     dt = data.table(str =  system(cmd, intern = TRUE))
     dt = dt[, tstrsplit(str, "\t")]
+    if(ncol(dt) != 18){
+        if(!silent) warning(as.character(qgr), " of ", bif, "was empty.")
+        dt = as.data.table(matrix("", nrow = 0, ncol = 18))
+    }
     colnames(dt) = cn_interact
+    dt$start = as.numeric(dt$start)
+    dt$end = as.numeric(dt$end)
     dt$score = as.numeric(dt$score)
     dt$value = as.numeric(dt$value)
     dt$sourceStart  = as.numeric(dt$sourceStart)
@@ -120,6 +127,7 @@ writeBigInteract_ibed = function(fibed,
     bn = unique(idt$bait_name)
     bn_cols = cols[(seq_along(bn) %% length(cols)) +1]
     names(bn_cols) = bn
+    message(round(nrow(idr)/1e6, 1), " M pairs")
     if(remove_trans){
         #remove trans
         idt = idt[bait_chr == otherEnd_chr]
@@ -127,7 +135,7 @@ writeBigInteract_ibed = function(fibed,
     }
     if(!is.null(query_gr)){
         igr = GRanges(idt[, .(seqnames = bait_chr, start = bait_start, end = bait_end)])
-        idt = idt[subjectHits(findOverlaps(query_gr, igr)),]
+        idt = idt[subjectHits(findOverlaps(query_gr, igr, ignore.strand = TRUE)),]
         message(round(nrow(idt)/nr*100, 6), "% filtered for genes")
     }
     if(!is.infinite(max_dist)){
@@ -333,6 +341,7 @@ writeBigInteract_hicpro = function(fhicpro,
     colnames(idt) = sub("\\.x$", "_i", colnames(idt))
     colnames(idt) = sub("\\.y$", "_j", colnames(idt))
     nr = nrow(idt)
+    message(round(nrow(idr)/1e6, 1), " M pairs")
     if(remove_trans){
         #remove trans
         idt = idt[seqnames_i == seqnames_j]
@@ -348,7 +357,7 @@ writeBigInteract_hicpro = function(fhicpro,
     nr = nrow(idt)
     if(!is.null(query_gr)){
         igr = GRanges(idt[, .(seqnames = bait_chr, start = bait_start, end = bait_end)])
-        idt = idt[subjectHits(findOverlaps(query_gr, igr)),]
+        idt = idt[subjectHits(findOverlaps(query_gr, igr, ignore.strand = TRUE)),]
         message(round(nrow(idt)/nr*100, 6), "% filtered for genes")
     }
     if(!is.infinite(max_dist)){

@@ -4,16 +4,29 @@
 \alias{writeBigInteract_ibed}
 \title{writeBigInteract_ibed}
 \usage{
-writeBigInteract_ibed(fibed, group_name = NULL, output_root = NULL,
-  cols = seqsetvis::safeBrew(5), index_method = c("a", "b", "ab")[1],
-  remove_trans = TRUE, query_gr = NULL, max_dist = Inf,
-  remove_bait2bait = TRUE, remove_bait2non = FALSE, min_N = 0,
-  min_score = 5, cleanup_interact = TRUE,
+writeBigInteract_ibed(
+  fibed,
+  group_name = NULL,
+  output_root = NULL,
+  cols = seqsetvis::safeBrew(5),
+  index_method = c("a", "b", "ab")[1],
+  remove_trans = TRUE,
+  query_gr = NULL,
+  max_dist = Inf,
+  remove_bait2bait = TRUE,
+  remove_bait2non = FALSE,
+  min_N = 0,
+  min_score = 5,
+  cleanup_interact = TRUE,
   chr_sizes = "/slipstream/home/joeboyd/hg38_chrsizes.txt",
-  autosql = "/slipstream/home/joeboyd/autoSql_bigInteract.txt")
+  autosql = "/slipstream/home/joeboyd/autoSql_bigInteract.txt"
+)
 }
 \arguments{
 \item{autosql}{}
+}
+\value{
+
 }
 \description{
 writeBigInteract_ibed

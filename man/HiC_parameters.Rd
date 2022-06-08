@@ -4,14 +4,24 @@
 \alias{HiC_parameters}
 \title{HiC_parameters}
 \usage{
-HiC_parameters(bin_size = 40000, diagonal_removed = T,
-  canonical_chr_only = T, depth_normalization = T,
-  quantile_normalization = F, log2_over_mean_normalization = T,
-  n_insulation_bins = "auto", min_insulation_distance = 0,
-  min_insulation_coverage = 0.3, n_delta_bins = "auto")
+HiC_parameters(
+  bin_size = 40000,
+  diagonal_removed = T,
+  canonical_chr_only = T,
+  depth_normalization = T,
+  quantile_normalization = F,
+  log2_over_mean_normalization = T,
+  n_insulation_bins = "auto",
+  min_insulation_distance = 0,
+  min_insulation_coverage = 0.3,
+  n_delta_bins = "auto"
+)
 }
 \arguments{
 \item{n_delta_bins}{}
+}
+\value{
+
 }
 \description{
 HiC_parameters
