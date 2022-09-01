@@ -28,9 +28,6 @@ ggplot_ref(
 \arguments{
 \item{text_y_relative}{}
 }
-\value{
-
-}
 \description{
 Title
 }

@@ -24,9 +24,6 @@ add_matrix_plot(
 \arguments{
 \item{p}{}
 }
-\value{
-
-}
 \description{
 Title
 }

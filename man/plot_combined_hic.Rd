@@ -23,9 +23,6 @@ plot_combined_hic(
 \arguments{
 \item{hmap_colors}{}
 }
-\value{
-
-}
 \description{
 Title
 }

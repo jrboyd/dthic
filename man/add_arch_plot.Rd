@@ -16,9 +16,6 @@ add_arch_plot(
 \arguments{
 \item{p}{}
 }
-\value{
-
-}
 \description{
 add_arch_plot
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/functions_plotting.R
 \name{plot_upperMatrix}
 \alias{plot_upperMatrix}
-\title{Title}
+\title{plot_upperMatrix}
 \usage{
 plot_upperMatrix(
   hic_mat,
@@ -15,9 +15,6 @@ plot_upperMatrix(
 \arguments{
 \item{hmap_colors}{}
 }
-\value{
-
-}
 \description{
-Title
+plot_upperMatrix
 }

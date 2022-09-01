@@ -25,9 +25,6 @@ writeBigInteract_ibed(
 \arguments{
 \item{autosql}{}
 }
-\value{
-
-}
 \description{
 writeBigInteract_ibed
 }

@@ -20,9 +20,6 @@ HiC_parameters(
 \arguments{
 \item{n_delta_bins}{}
 }
-\value{
-
-}
 \description{
 HiC_parameters
 }

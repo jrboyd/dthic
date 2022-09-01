@@ -9,9 +9,6 @@ apply_diagonal_zscore(hic_mat, include_hetero_chr = FALSE)
 \arguments{
 \item{hic_mat}{}
 }
-\value{
-
-}
 \description{
 calculates z-score of log2 transformed data
 z-scores are segmented by chromosome and by distance from diagonal

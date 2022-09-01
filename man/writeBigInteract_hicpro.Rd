@@ -23,9 +23,6 @@ writeBigInteract_hicpro(
 \arguments{
 \item{autosql}{}
 }
-\value{
-
-}
 \description{
 writeBigInteract_hicpro
 }

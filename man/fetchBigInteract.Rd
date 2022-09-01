@@ -9,9 +9,6 @@ fetchBigInteract(bif, qgr, qgr2 = NULL, silent = FALSE)
 \arguments{
 \item{silent}{if TRUE, no warnings will be shown. default is FALSE.}
 }
-\value{
-
-}
 \description{
 fetchBigInteract
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/functions_plotting.R
 \name{plot_upperMatrix_with_insulation}
 \alias{plot_upperMatrix_with_insulation}
-\title{Title}
+\title{plot_upperMatrix_with_insulation}
 \usage{
 plot_upperMatrix_with_insulation(
   hic_mat,
@@ -23,9 +23,6 @@ plot_upperMatrix_with_insulation(
 \arguments{
 \item{show_minmax}{}
 }
-\value{
-
-}
 \description{
-Title
+plot_upperMatrix_with_insulation
 }

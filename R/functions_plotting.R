@@ -16,13 +16,20 @@
 #'
 #' @return
 #' @export
+#' @import gridExtra
 #'
 #' @examples
-plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
-                             exons_gr = NULL, max_dist = NULL,
+plot_combined_hic = function(hic_list,
+                             runx_bws,
+                             ctcf_bws,
+                             exons_gr = NULL,
+                             max_dist = NULL,
                              hic_names = names(hic_list),
-                             target_gene, extension_size_bp, output_prefix = "combined_plots",
-                             n_arch = 50, min_arch_dist = 10*10^5,
+                             target_gene,
+                             extension_size_bp,
+                             output_prefix = "combined_plots",
+                             n_arch = 50,
+                             min_arch_dist = 10*10^5,
                              max_fill = NULL,
                              hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red")){
     qgr = fetch_region_by_gene_name(target_gene, ext = extension_size_bp)
@@ -90,13 +97,13 @@ plot_combined_hic = function(hic_list, runx_bws, ctcf_bws,
             p.list[[j]]$widths = maxWidth
         }
         pdf(paste0(output_prefix, "_", target_gene, "_ext", extension_size_bp, "_", main, "_bin", bin_size, ".pdf"), height = 12)
-        grid.arrange(arrangeGrob(grobs = p.list, ncol=1,heights=c(.2,.6,.4,.2,.3, .3, .3)), top = main)
+        gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs = p.list, ncol=1,heights=c(.2,.6,.4,.2,.3, .3, .3)), top = main)
         dev.off()
     }
 
 }
 
-#' Title
+#' plot_upperMatrix
 #'
 #' @param hic_mat
 #' @param chr
@@ -140,23 +147,17 @@ plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray
     nlab = 6
     breaks = 0:nlab * ceiling(length(ylab) / nlab) * bin_size
     p = ggplot(hex_df, aes(x=x, y=y)) +
-        geom_polygon(aes(group=id, fill=fill)) + scale_fill_gradientn(colours = hmap_colors) +
-        labs(x = paste(chr, "position"), y = "distance") + scale_y_continuous(breaks = breaks)
+        geom_polygon(aes(group=id, fill=fill), color = NA) +
+        scale_fill_gradientn(colours = hmap_colors) +
+        labs(x = paste(chr, "position"), y = "distance") +
+        scale_y_continuous(breaks = breaks)
     # p = p + coord_fixed()
     return(p)
     #different plot types facet trick
     #https://statbandit.wordpress.com/2011/07/29/a-ggplot-trick-to-plot-different-plot-types-in-facets/
-
-    # plot_df = hex_df
-    # plot_df$type = "hex"
-    # f1 <- ggplot(dat2, aes(x=Date,y=value,ymin=0,ymax=value))+facet_grid(variable~., scales='free')
-    # ins_gr = GRanges(hic_mat@hic_1d)
-    # start(ins_gr) = rowMeans(cbind(start(ins_gr), end(ins_gr)))
-    # end(ins_gr)  = start(ins_gr)
-    # ins_vals = ins_gr[queryHits(findOverlaps(ins_gr, GRanges(chr, IRanges(start, end))))]$value
 }
 
-#' Title
+#' plot_upperMatrix_with_insulation
 #'
 #' @param hic_mat
 #' @param chr
@@ -228,22 +229,9 @@ plot_upperMatrix_with_insulation = function(hic_mat,
     yfac = min(ceiling(max_dist / nlab / bin_size) * bin_size, #when max_dist is less than start to end
                ceiling(length(ylab) / nlab) * bin_size) #when start and end are less than max_dist
     breaks = 0:nlab * yfac
-    # p = ggplot(cbind(hex_df, fill=rep(hicrng$val, each=6)), aes(x=x, y=y)) +
-    #   geom_polygon(aes(group=id, fill=fill)) + scale_fill_gradientn(colours = hmap_colors) +
-    #   labs(x = paste(chr, "position"), y = "distance") + scale_y_continuous(breaks = breaks)
-    # p = p + coord_fixed()
-    # print(p)
-    #different plot types facet trick
     #https://statbandit.wordpress.com/2011/07/29/a-ggplot-trick-to-plot-different-plot-types-in-facets/
     hex_df$type = "hex"
     ins_df = ggplot_hic_delta.df(dt = hic_mat@hic_1d, chr, start, end)
-
-
-    # plot_df = rbind(hex_df,
-    #                 ins_df)
-    # plot_df$type = factor(plot_df$type, levels = c("hex", "insulation"))
-
-
 
     add_hex_plot = function(p, ptype = "hex"){
         df = hex_df
@@ -261,7 +249,7 @@ plot_upperMatrix_with_insulation = function(hic_mat,
         ann_df = subset(mmdf, id != 0)
 
         minmax2col = c("min" = "darkgreen", "max" = "orange")
-        p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id)) +
+        p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id), color = NA) +
             scale_fill_gradientn(colours = hmap_colors) +
             labs(x = "", y = "distance", fill = fill_lab) +
             scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
@@ -299,16 +287,6 @@ plot_upperMatrix_with_insulation = function(hic_mat,
         }
         return(p)
     }
-    ###funky facet way
-    # p = ggplot()
-    # p = add_hex_plot(p)
-    # p = add_ins_plot(p)
-    # a = p + facet_grid(type~.,scales="free_y")
-    # gta = ggplot_gtable(ggplot_build(a))
-    # gta$heights[[6]] <- unit(5, "cm")
-    # gta$heights[[8]] <- unit(1, "cm")
-    # grid.newpage()
-    # grid.draw(gta)
     pA = add_hex_plot(ggplot())
     pB = add_ins_plot(ggplot())
     gA = ggplotGrob(pA)
@@ -317,14 +295,8 @@ plot_upperMatrix_with_insulation = function(hic_mat,
     gA$widths <- as.list(maxWidth)
     gB$widths <- as.list(maxWidth)
     if(show_plot){
-        grid.arrange(arrangeGrob(gA,gB,nrow=2,heights=c(.8,.3)), top = main_title)
+        gridExtra::grid.arrange(gridExtra::arrangeGrob(gA,gB,nrow=2,heights=c(.8,.3)), top = main_title)
     }
-
-    # grid.newpage()
-    # grid.draw(rbind(ggplotGrob(a), ggplotGrob(b), size = "last"))
-    #
-    # arrangeGrob(ggplotGrob(),gB,nrow=2,heights=c(.8,.3))
-
     invisible(list(ggplots = list(upperMatrix = pA, insulation = pB),
                    grobs = list(upperMatrix = gA, insulation = gB)))
 }
@@ -424,7 +396,7 @@ ggplot_ref = function(gene_gr, qgr, label_method = c("text", "label", "none")[1]
     while(length(to_decide) > 0){
         to_keep = numeric()
         to_move = numeric()
-        olaps =  as.data.table(findOverlaps(egr[to_decide], egr[to_decide], ignore.strand = T))
+        olaps =  as.data.table(findOverlaps(egr[to_decide], egr[to_decide], ignore.strand = TRUE))
         olaps = olaps[queryHits < subjectHits]
         olaps$queryHits = to_decide[olaps$queryHits]
         olaps$subjectHits = to_decide[olaps$subjectHits]
@@ -505,7 +477,7 @@ ggplot_list = function(my_plots, top_text = "", bottom_text = "position", height
     for(j in 1:length(my_grobs)){
         my_grobs[[j]]$widths = maxWidth
     }
-    grid.arrange(arrangeGrob(grobs = my_grobs, ncol=1,heights=heights), top = top_text, newpage = F)
+    gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs = my_grobs, ncol=1,heights=heights), top = top_text, newpage = F)
 }
 
 add_bigwig_plot = function(bigwig_file, chr, start, end, bigwig_title = "FE", p = NULL, fe_max = NULL){
@@ -678,7 +650,7 @@ add_matrix_plot = function(hic_mat, qgr,
     }
 
     if(is.null(p)) p = ggplot()
-    p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id)) +
+    p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id), color = NA) +
         scale_fill_gradientn(colours = hmap_colors, limits = fill_limits) +
         labs(x = "", y = "distance", fill = fill_lab) +
         scale_y_continuous(breaks = hic_equal_breaks(bin_size = ifelse(max_dist > 4e6, 1e6, bin_size), max_dist = max_dist)) +

@@ -214,7 +214,7 @@ decrease_resolution = function(hic_mat, pool_factor, calc_insulation = F){
     })
     grs = unlist(GRangesList(grs))
     grs$pooled_index = 1:length(grs)
-    odt = as.data.table(findOverlaps(grs, GRanges(hic_mat@hic_1d), minoverlap = 5))
+    odt = as.data.table(findOverlaps(grs, GRanges(hic_mat@hic_1d), minoverlap = 5, ignore.strand = TRUE))
     setkey(odt, queryHits)
     print("reduce 1d...")
     new_1d = as.data.table(grs)
@@ -368,7 +368,7 @@ fetch_bigwig_as_dt = function(bigwig_file, chr, start, end, n_bins = 200, bin_me
     runx_dt = as.data.table(runx_gr)
     tiles_gr = tile(qgr, n = n_bins)[[1]]
     tiles_dt = as.data.table(tiles_gr)
-    olaps_dt = as.data.table(findOverlaps(runx_gr, tiles_gr))
+    olaps_dt = as.data.table(findOverlaps(runx_gr, tiles_gr, ignore.strand = TRUE))
     setkey(olaps_dt, "subjectHits")
 
     if(show_progress_bar){
@@ -499,7 +499,7 @@ fetch_genes_in_region = function(qgr = NULL, chr = NULL, start = NULL, end = NUL
     if(is.null(target_gr)){
         target_gr = exon_gr
     }
-    target_gr[queryHits(findOverlaps(query = target_gr, qgr))]
+    target_gr[queryHits(findOverlaps(query = target_gr, qgr, ignore.strand = TRUE))]
 
 }
 
@@ -584,7 +584,7 @@ make_hic_minmax_df = function(dt_1d, qgr){
     gr = GRanges(dt_1d)
     start(gr) = start(gr) + 1
     q_gr = GRanges(chr, IRanges(start, end))
-    q_indexes = dt_1d[subjectHits(findOverlaps(query = q_gr, subject = gr))]$index
+    q_indexes = dt_1d[subjectHits(findOverlaps(query = q_gr, subject = gr, ignore.strand = TRUE))]$index
     dt_1d = dt_1d[q_indexes]
     dt_1d[, xs := (start + end) / 2]
     max_k = dt_1d$minmax == 1
@@ -638,7 +638,7 @@ fetch_windowed_bw = function(bw_file, win_size = 50, qgr = NULL){
     mids = mid_gr(win)
     start(win) = mids
     end(win) = mids
-    olaps = findOverlaps(win, bw_gr)
+    olaps = findOverlaps(win, bw_gr, ignore.strand = TRUE)
     win = win[queryHits(olaps)]
     win$FE = bw_gr[subjectHits(olaps)]$score
     return(win)

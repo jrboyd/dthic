@@ -72,7 +72,7 @@ for(i in 1:length(hic_mats)){
 
     grobs = ggplotList2grobList(plots_rects)
 
-    grid.arrange(grobs = grobs, heights = c(4, 2, 3), top = names(hic_mats)[i])
+    gridExtra::grid.arrange(grobs = grobs, heights = c(4, 2, 3), top = names(hic_mats)[i])
 
 }
 dev.off()
@@ -108,7 +108,7 @@ for(i in 1:length(hic_mats)){
 
     grobs = ggplotList2grobList(plots_rects)
 
-    grid.arrange(grobs = grobs, heights = c(4, 2, 3), top = names(hic_mats)[i])
+    gridExtra::grid.arrange(grobs = grobs, heights = c(4, 2, 3), top = names(hic_mats)[i])
 
 }
 dev.off()

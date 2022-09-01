@@ -9,9 +9,6 @@ dt2mat(dt)
 \arguments{
 \item{dt}{}
 }
-\value{
-
-}
 \description{
 sparse data.table to dense matrix conversions
 }
