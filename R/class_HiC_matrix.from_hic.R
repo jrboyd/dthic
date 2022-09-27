@@ -62,29 +62,26 @@ fetch_hic = function(hic_f,
                      e2 = NULL,
                      fill_matrix = F,
                      res = NULL){
-    base_cmd = "VC SUB_HIC_FILE SUB_POS_A SUB_POS_B BP SUB_RES"
     pos_a = paste(c(chr, s, e), collapse = ":")
     if(is.null(chr2)) chr2 = chr
     if(is.null(s2)) s2 = s
     if(is.null(e2)) e2 = e
     pos_b = paste(c(chr2, s2, e2), collapse = ":")
-    # cmd = base_cmd
-    # cmd = sub("SUB_HIC_FILE", hic_f, cmd)
-    # cmd = sub("SUB_POS_A", pos_a, cmd)
-    # cmd = sub("SUB_POS_B", pos_b, cmd)
-    # cmd = sub("SUB_RES", res, cmd)
-    # hic_dt <- as.data.table(straw_R(cmd))
     if(is.null(res)){
         res = strawr::readHicBpResolutions(hic_f)[1]
         message("defaulting resolution to ", res)
     }
-    strawr::straw(norm = "VC",
-                  fname = hic_f,
-                  chr1loc = pos_a,
-                  chr2loc = pos_b,
-                  unit = "BP",
-                  binsize = res,
-                  matrix = "oe")
+    hic_dt = as.data.table(
+        strawr::straw(
+            norm = "VC",
+            fname = hic_f,
+            chr1loc = pos_a,
+            chr2loc = pos_b,
+            unit = "BP",
+            binsize = res,
+            matrix = "oe"
+        )
+    )
 
     if(fill_matrix){
         hic_dt = rbind(hic_dt, hic_dt[x != y, .(x = y, y = x, counts)])
