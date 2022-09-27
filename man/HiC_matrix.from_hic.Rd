@@ -4,7 +4,12 @@
 \alias{HiC_matrix.from_hic}
 \title{Load a HiC_matrix from a .hic file.}
 \usage{
-HiC_matrix.from_hic(hic_f, query_gr, bin_size = NULL)
+HiC_matrix.from_hic(
+  hic_f,
+  query_gr,
+  bin_size = NULL,
+  matrix = c("observed", "oe", "expected")[2]
+)
 }
 \arguments{
 \item{hic_f}{a .hic file}
@@ -12,6 +17,8 @@ HiC_matrix.from_hic(hic_f, query_gr, bin_size = NULL)
 \item{query_gr}{a query GRanges}
 
 \item{bin_size}{the bin size to retrieve. Use strawr::readHicBpResolutions to find valid resoltions.}
+
+\item{matrix}{one of c("observed", "oe", "expected"). Default is "oe", observed/expected. See strawr::straw for details.}
 }
 \description{
 This HiC_matrix is only a small slice of complete matrix therefore stats like insulation are not valid.

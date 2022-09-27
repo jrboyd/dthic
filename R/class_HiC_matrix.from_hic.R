@@ -6,13 +6,17 @@
 #' @param hic_f a .hic file
 #' @param query_gr a query GRanges
 #' @param bin_size the bin size to retrieve. Use strawr::readHicBpResolutions to find valid resoltions.
+#' @param matrix one of c("observed", "oe", "expected"). Default is "oe", observed/expected. See strawr::straw for details.
 #'
 #' @return
 #' @export
 #' @import strawr
 #'
 #' @examples
-HiC_matrix.from_hic = function(hic_f, query_gr, bin_size = NULL){
+HiC_matrix.from_hic = function(hic_f,
+                               query_gr,
+                               bin_size = NULL,
+                               matrix = c("observed", "oe", "expected")[2]){
     if(is.null(bin_size)){
         bin_size.available = strawr::readHicBpResolutions(hic_f)
         bin_size = max(bin_size.available)
@@ -61,7 +65,8 @@ fetch_hic = function(hic_f,
                      s2 = NULL,
                      e2 = NULL,
                      fill_matrix = F,
-                     res = NULL){
+                     res = NULL,
+                     matrix = "observed"){
     pos_a = paste(c(chr, s, e), collapse = ":")
     if(is.null(chr2)) chr2 = chr
     if(is.null(s2)) s2 = s
@@ -79,7 +84,7 @@ fetch_hic = function(hic_f,
             chr2loc = pos_b,
             unit = "BP",
             binsize = res,
-            matrix = "oe"
+            matrix = matrix
         )
     )
 
