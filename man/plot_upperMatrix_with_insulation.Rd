@@ -17,7 +17,9 @@ plot_upperMatrix_with_insulation(
   max_fill = NULL,
   hmap_colors = c("lightgray", "steelblue", "darkblue", "red", "red"),
   show_insulation_range = T,
-  show_minmax = T
+  show_minmax = T,
+  fill_limits = c(NA, NA),
+  na.value = hmap_colors[length(hmap_colors)]
 )
 }
 \arguments{

@@ -15,7 +15,8 @@ add_matrix_plot(
   hmap_colors = c("lightgray", "steelblue", "darkblue", "red", "red"),
   minmax2col = c(min = "orange", max = "green"),
   show_insulation_range = T,
-  fill_limits = NULL,
+  fill_limits = c(NA, NA),
+  na.value = hmap_colors[length(hmap_colors)],
   show_min = T,
   show_max = F,
   p = NULL

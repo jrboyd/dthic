@@ -9,7 +9,9 @@ plot_upperMatrix(
   chr,
   start,
   end,
-  hmap_colors = c("lightgray", "steelblue", "darkblue", "red", "red")
+  hmap_colors = c("lightgray", "steelblue", "darkblue", "red", "red"),
+  fill_limits = c(NA, NA),
+  na.value = hmap_colors[length(hmap_colors)]
 )
 }
 \arguments{
