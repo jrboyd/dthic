@@ -115,7 +115,8 @@ plot_combined_hic = function(hic_list,
 #' @export
 #'
 #' @examples
-plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red")){
+plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
+                            fill_limits = c(NA, NA), na.value = hmap_colors[length(hmap_colors)]){
     bin_size = hic_mat@parameters@bin_size
     # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
     hicrng = hic_mat[chr, start:end]
@@ -136,9 +137,6 @@ plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray
     hicrng[, x_chr := index2center(x)]
     hicrng[, y_chr := bin_size * y]
 
-    # hicrng[, i_chr := (i - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
-    # hicrng[, j_chr := (j - MIN_I)/(MAX_I - MIN_I) * (XMAX - XMIN - bin_size) + XMIN + bin_size / 2]
-
     hex_df = hex_coord_df(hicrng$x_chr, hicrng$y_chr, width = bin_size, height = bin_size, size = 1)
     hex_df = cbind(hex_df, fill=rep(hicrng$val, each=6))
 
@@ -147,10 +145,12 @@ plot_upperMatrix = function(hic_mat, chr, start, end, hmap_colors = c("lightgray
     nlab = 6
     breaks = 0:nlab * ceiling(length(ylab) / nlab) * bin_size
     p = ggplot(hex_df, aes(x=x, y=y)) +
-        geom_polygon(aes(group=id, fill=fill), color = NA) +
-        scale_fill_gradientn(colours = hmap_colors) +
+        geom_polygon(aes(group=id, fill=fill, color = fill)) +
+        scale_fill_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
+        scale_color_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
         labs(x = paste(chr, "position"), y = "distance") +
-        scale_y_continuous(breaks = breaks)
+        scale_y_continuous(breaks = breaks) +
+        guides(color = "none")
     # p = p + coord_fixed()
     return(p)
     #different plot types facet trick
@@ -184,7 +184,9 @@ plot_upperMatrix_with_insulation = function(hic_mat,
                                             max_dist = 10*10^6,  point_size = 3.5,
                                             max_fill = NULL,
                                             hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
-                                            show_insulation_range = T, show_minmax = T){
+                                            show_insulation_range = T,
+                                            show_minmax = T,
+                                            fill_limits = c(NA, NA), na.value = hmap_colors[length(hmap_colors)]){
     bin_size = hic_mat@parameters@bin_size
     # hicrng = get_chrRange_Matrix(hic_mat@hic_2d, hic_mat@hic_1d, chr, start, end)
     hicrng = hic_mat[chr, c(start,end)]
@@ -249,11 +251,13 @@ plot_upperMatrix_with_insulation = function(hic_mat,
         ann_df = subset(mmdf, id != 0)
 
         minmax2col = c("min" = "darkgreen", "max" = "orange")
-        p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id), color = NA) +
-            scale_fill_gradientn(colours = hmap_colors) +
+        p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, color = fill, group = id)) +
+            scale_fill_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
+            scale_color_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
             labs(x = "", y = "distance", fill = fill_lab) +
             scale_y_continuous(breaks = hic_equal_breaks(bin_size = bin_size, max_dist = max_dist)) +
-            coord_cartesian(xlim = c(start, end))
+            coord_cartesian(xlim = c(start, end)) +
+            guides(color = "none")
         # if(nrow(ann_df) > 0){
         # ann_df$type = "hex"
         # p = p + annotate("point", x = ann_df$x, y = 0 - max(df$y)*.01, fill = minmax2col[ann_df$minmax], color = "black", size = point_size, stroke = 1.5, shape = 21)
@@ -573,7 +577,8 @@ add_matrix_plot = function(hic_mat, qgr,
                            hmap_colors = c("lightgray", "steelblue", 'darkblue', "red", "red"),
                            minmax2col = c("min" = "orange", "max" = "green"),
                            show_insulation_range = T,
-                           fill_limits = NULL,
+                           fill_limits = c(NA, NA),
+                           na.value = hmap_colors[length(hmap_colors)],
                            show_min = T,
                            show_max = F,
                            p = NULL){
@@ -650,11 +655,13 @@ add_matrix_plot = function(hic_mat, qgr,
     }
 
     if(is.null(p)) p = ggplot()
-    p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, group = id), color = NA) +
-        scale_fill_gradientn(colours = hmap_colors, limits = fill_limits) +
+    p = p + geom_polygon(data = df, aes(x=x, y=y, fill = fill, color = fill, group = id)) +
+        scale_fill_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
+        scale_color_gradientn(colours = hmap_colors, limits = fill_limits, na.value = na.value) +
         labs(x = "", y = "distance", fill = fill_lab) +
         scale_y_continuous(breaks = hic_equal_breaks(bin_size = ifelse(max_dist > 4e6, 1e6, bin_size), max_dist = max_dist)) +
-        coord_cartesian(xlim = c(start, end))
+        coord_cartesian(xlim = c(start, end)) +
+        guides(color = "none")
 
     if(exists("ann_df")) if(nrow(ann_df) > 0){
         if(show_max){

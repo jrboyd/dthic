@@ -1,7 +1,3 @@
-# library(data.table)
-# query_gr = GRanges("chr19:11326847-14093246")
-# fibed = "~/R/hic_analysis/data/chicago4/CHi_AF_03122019_MCF10A/fullOutput.ibed"
-# fhicpro = "~/HiC-Pro/outputs/AF_dpnII_03112019/MCF10A_full/hic_results/matrix/rep4/raw/50000/rep4_50000.matrix"
 
 cn_interact = c(
     "seqnames",

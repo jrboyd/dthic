@@ -372,7 +372,7 @@ fetch_bigwig_as_dt = function(bigwig_file, chr, start, end, n_bins = 200, bin_me
     setkey(olaps_dt, "subjectHits")
 
     if(show_progress_bar){
-        app_fun = pbsapply
+        app_fun = pbapply::pbsapply
     }else{
         app_fun = sapply
     }
@@ -603,14 +603,12 @@ make_hic_minmax_df = function(dt_1d, qgr){
     return(insulation_df)
 }
 
-library(rtracklayer)
-library(pbapply)
 #windowed view of bigwig file, filtered by qgr if supplied
 fetch_windowed_bw = function(bw_file, win_size = 50, qgr = NULL){
     if(is.null(qgr)){
-        bw_gr = import.bw(bw_file)
+        bw_gr = rtracklayer::import.bw(bw_file)
     }else{
-        bw_gr = import.bw(bw_file, which = qgr)
+        bw_gr = rtracklayer::import.bw(bw_file, which = qgr)
     }
 
     rng = range(bw_gr)
@@ -624,7 +622,7 @@ fetch_windowed_bw = function(bw_file, win_size = 50, qgr = NULL){
     sn = names(seqlengths(win))
     names(sn) = sn
     suppressWarnings({
-        new_seqlengths = pbsapply(sn, function(x){
+        new_seqlengths = pbapply::pbsapply(sn, function(x){
 
             max(end(subset(win, seqnames == x)))
 
